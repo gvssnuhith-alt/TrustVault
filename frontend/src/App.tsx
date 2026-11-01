@@ -5,7 +5,7 @@ import {
   Eye, Download, RefreshCw, Users, ShieldAlert, History
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://characteristic-neck-stages-lap.trycloudflare.com/api';
 
 interface User {
   id: string;
