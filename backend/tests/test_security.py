@@ -143,3 +143,33 @@ def test_judge_removes_auth_check_fails(client, db_session):
     # Bob MUST get 404
     res = client.get(f"/api/documents/{doc_id}/download", headers=bob_token)
     assert res.status_code == 404, "Security check bypassed!"
+
+def test_tampered_database_audit_log_detected(client, db_session):
+    """
+    Evaluates Threat-03:
+    If a malicious DB admin mutates an audit log entry in place,
+    verify_audit_chain MUST detect the tampering and fail verification.
+    """
+    client.post("/api/auth/register", json={"email": "audit_admin@vault.io", "username": "audit_admin", "password": "Password123!", "role": "admin"})
+    admin_login = client.post("/api/auth/login", json={"username_or_email": "audit_admin", "password": "Password123!"}).json()
+    admin_token = {"Authorization": f"Bearer {admin_login['access_token']}"}
+
+    # Record some actions
+    client.post("/api/auth/register", json={"email": "alice_audit@vault.io", "username": "alice_audit", "password": "Password123!", "role": "owner"})
+    
+    # Verify valid before tampering
+    res_before = client.get("/api/audit/verify", headers=admin_token)
+    assert res_before.status_code == 200
+    assert res_before.json()["status"] == "valid"
+
+    # Simulate rogue DB tampering on a middle record (change metadata without updating current_hash)
+    tampered_row = db_session.query(AuditLog).first()
+    tampered_row.metadata_json = '{"tampered": true, "malicious_injection": "unauthorized"}'
+    db_session.commit()
+
+    # Re-verify -> MUST detect tampering
+    res_after = client.get("/api/audit/verify", headers=admin_token)
+    assert res_after.status_code == 200
+    assert res_after.json()["status"] == "tampered"
+    assert "Content signature mismatch" in res_after.json()["reason"]
+
