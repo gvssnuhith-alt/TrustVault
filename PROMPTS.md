@@ -19,4 +19,18 @@ This journal logs AI interactions, specifically documenting where AI suggestions
 * **Commit:** Initial repository setup & threat modeling.
 
 ---
-*(Additional dated entries will be recorded in-flight as features and edge-case mitigations are developed)*
+---
+
+### Entry 2: 2026-11-01 - Tamper-Proof Audit Trail Hash Linking
+* **Task Requested:** Implement immutable audit trail verification for Snovasys Requirement 6 & Threat-03.
+* **AI Output:**
+  The AI suggested computing a SHA-256 hash using the log creation timestamp string `datetime.now().isoformat()`.
+* **Defect / Security Flaw Identified:**
+  1. Serializing timestamps into JSON / ISO strings introduced sub-second microsecond truncation disparities across SQLite and PostgreSQL query drivers.
+  2. Sequential ordering solely by timestamp resulted in non-deterministic previous-hash resolution when multiple audit events fired within the same millisecond.
+* **Correction Implemented:**
+  1. Refactored audit sequence ordering to use monotonic auto-incrementing IDs (`id`) ensuring guaranteed FIFO chain progression.
+  2. Decoupled the hash signature payload from microsecond formatting variances: hash now securely binds `uuid_str`, `user_id`, `document_id`, `action`, `metadata_json`, and `previous_hash`.
+* **Commit:** Chained audit engine and automated verification suite.
+
+---
