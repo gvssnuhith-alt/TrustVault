@@ -5,7 +5,7 @@ import {
   Eye, Download, RefreshCw, Users, ShieldAlert, History
 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://characteristic-neck-stages-lap.trycloudflare.com/api';
+const API_BASE = 'https://characteristic-neck-stages-lap.trycloudflare.com/api';
 
 interface User {
   id: string;
@@ -89,11 +89,16 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username_or_email: loginId, password })
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Login failed');
+      const text = await res.text();
+      let data: any = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch (parseErr) {
+        throw new Error(`Server returned non-JSON response (${res.status}): ${text.substring(0, 100)}`);
       }
-      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || `Login failed (${res.status})`);
+      }
       localStorage.setItem('tv_token', data.access_token);
       setToken(data.access_token);
       setCurrentUser(data.user);
@@ -109,8 +114,11 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        const user = await res.json();
-        setCurrentUser(user);
+        const text = await res.text();
+        if (text) {
+          const user = JSON.parse(text);
+          setCurrentUser(user);
+        }
       } else {
         logout();
       }
@@ -136,8 +144,11 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        setDocs(data);
+        const text = await res.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setDocs(data);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -150,8 +161,11 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        setAuditLogs(data);
+        const text = await res.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setAuditLogs(data);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -164,8 +178,11 @@ export default function App() {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        setChainStatus(data);
+        const text = await res.text();
+        if (text) {
+          const data = JSON.parse(text);
+          setChainStatus(data);
+        }
       }
     } catch (err) {
       console.error(err);
