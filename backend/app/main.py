@@ -33,10 +33,18 @@ app.include_router(docs_router, prefix=settings.API_V1_STR)
 app.include_router(audit_router, prefix=settings.API_V1_STR)
 
 @app.get("/")
-def health_check():
+def health_check_root():
     return {
         "status": "online",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "security_policy": "Zero-Trust live DB evaluation with SHA-256 chained audit"
+    }
+
+@app.get("/healthz")
+def health_check_healthz():
+    return {
+        "status": "healthy",
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION
     }
