@@ -69,6 +69,29 @@ class DocumentUpdateRequest(BaseModel):
     title: Optional[str] = None
     category: Optional[str] = None
 
+class UploadIntentRequest(BaseModel):
+    title: str
+    category: str = "General"
+    filename: str
+    file_size: int
+    file_hash_sha256: str
+    mime_type: str = "application/octet-stream"
+
+class UploadIntentResponse(BaseModel):
+    upload_url: str
+    storage_path: str
+    file_uuid: str
+    max_size: int
+
+class ConfirmUploadRequest(BaseModel):
+    title: str
+    category: str = "General"
+    original_filename: str
+    storage_path: str
+    file_size: int
+    file_hash_sha256: str
+    mime_type: str
+
 # Audit schemas
 class AuditLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

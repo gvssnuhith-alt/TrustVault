@@ -141,4 +141,83 @@ class StorageManager:
                 while chunk := f.read(1024 * 1024):
                     yield chunk
 
+    def get_presigned_upload_url(
+        self,
+        storage_identifier: str,
+        content_type: str = "application/octet-stream",
+        expires_in: int = 300
+    ) -> Optional[str]:
+        """
+        Generates S3 Presigned PUT URL for direct browser-to-S3 uploads.
+        Bypasses serverless request body limits (e.g. Vercel 4.5MB limit)
+        while preserving server-side authorization and private buckets.
+        """
+        if self.backend == "s3" and self._s3_client:
+            try:
+                return self._s3_client.generate_presigned_url(
+                    "put_object",
+                    Params={
+                        "Bucket": self.bucket,
+                        "Key": storage_identifier,
+                        "ContentType": content_type
+                    },
+                    ExpiresIn=expires_in
+                )
+            except Exception as e:
+                print(f"Error generating presigned upload url: {e}")
+                return None
+        return None
+
+    def get_presigned_download_url(
+        self,
+        storage_identifier: str,
+        filename: Optional[str] = None,
+        expires_in: int = 300
+    ) -> Optional[str]:
+        """
+        Generates S3 Presigned GET URL for direct browser downloads.
+        Bypasses serverless response body limits while enforcing zero-trust auth.
+        """
+        if self.backend == "s3" and self._s3_client:
+            try:
+                params = {
+                    "Bucket": self.bucket,
+                    "Key": storage_identifier
+                }
+                if filename:
+                    # Sanitize filename for HTTP header
+                    clean_name = filename.replace('"', '\\"')
+                    params["ResponseContentDisposition"] = f'attachment; filename="{clean_name}"'
+                return self._s3_client.generate_presigned_url(
+                    "get_object",
+                    Params=params,
+                    ExpiresIn=expires_in
+                )
+            except Exception as e:
+                print(f"Error generating presigned download url: {e}")
+                return None
+        return None
+
+    def get_object_metadata(self, storage_identifier: str) -> Optional[dict]:
+        """
+        Retrieves object metadata (size, content type) from S3 to verify uploaded assets.
+        """
+        if self.backend == "s3" and self._s3_client:
+            try:
+                res = self._s3_client.head_object(Bucket=self.bucket, Key=storage_identifier)
+                return {
+                    "size": res.get("ContentLength", 0),
+                    "content_type": res.get("ContentType", ""),
+                    "etag": res.get("ETag", "").strip('"')
+                }
+            except Exception:
+                return None
+        if os.path.exists(storage_identifier):
+            return {
+                "size": os.path.getsize(storage_identifier),
+                "content_type": "application/octet-stream",
+                "etag": ""
+            }
+        return None
+
 storage_manager = StorageManager()

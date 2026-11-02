@@ -396,21 +396,77 @@ export function App() {
     setErrorMsg('');
     setIsUploading(true);
 
-    const formData = new FormData();
-    formData.append('title', uploadTitle);
-    formData.append('category', uploadCategory);
-    formData.append('file', uploadFile);
-
     try {
       const activeToken = token || localStorage.getItem('tv_token');
-      const res = await fetch(`${API_BASE}/documents/upload`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${activeToken}` },
-        body: formData
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || 'Upload failed');
+      let data;
+
+      if (uploadFile.size > 4 * 1024 * 1024) {
+        // Direct Presigned S3 Upload to bypass Vercel 4.5MB Serverless payload limit
+        const buffer = await uploadFile.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const sha256 = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        const intentRes = await fetch(`${API_BASE}/documents/upload-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeToken}`
+          },
+          body: JSON.stringify({
+            title: uploadTitle || uploadFile.name,
+            category: uploadCategory,
+            filename: uploadFile.name,
+            file_size: uploadFile.size,
+            file_hash_sha256: sha256,
+            mime_type: uploadFile.type || 'application/octet-stream'
+          })
+        });
+        const intentData = await intentRes.json();
+        if (!intentRes.ok) throw new Error(intentData.detail || 'Upload authorization failed');
+
+        const putRes = await fetch(intentData.upload_url, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': uploadFile.type || 'application/octet-stream'
+          },
+          body: uploadFile
+        });
+        if (!putRes.ok) throw new Error(`Direct storage upload failed with status ${putRes.status}`);
+
+        const confirmRes = await fetch(`${API_BASE}/documents/confirm-upload`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${activeToken}`
+          },
+          body: JSON.stringify({
+            title: uploadTitle || uploadFile.name,
+            category: uploadCategory,
+            original_filename: uploadFile.name,
+            storage_path: intentData.storage_path,
+            file_size: uploadFile.size,
+            file_hash_sha256: sha256,
+            mime_type: uploadFile.type || 'application/octet-stream'
+          })
+        });
+        data = await confirmRes.json();
+        if (!confirmRes.ok) throw new Error(data.detail || 'Upload confirmation failed');
+      } else {
+        const formData = new FormData();
+        formData.append('title', uploadTitle);
+        formData.append('category', uploadCategory);
+        formData.append('file', uploadFile);
+
+        const res = await fetch(`${API_BASE}/documents/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${activeToken}` },
+          body: formData
+        });
+        data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || 'Upload failed');
+        }
       }
       setSuccessMsg(`Document '${data.title}' safely committed to vault.`);
       setUploadTitle('');

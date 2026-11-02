@@ -11,10 +11,14 @@ from sqlalchemy import or_, and_, func
 from app.config import settings
 from app.database import get_db
 from app.models import User, UserRole, Document, DocumentPermission, AuditAction
-from app.schemas import DocumentResponse, DocumentUpdateRequest, PermissionGrantRequest, PermissionResponse
+from app.schemas import (
+    DocumentResponse, DocumentUpdateRequest, PermissionGrantRequest, PermissionResponse,
+    UploadIntentRequest, UploadIntentResponse, ConfirmUploadRequest
+)
 from app.auth import get_current_user, require_owner_or_admin
 from app.audit import record_audit_event
 from app.storage import storage_manager
+from fastapi.responses import FileResponse, StreamingResponse, RedirectResponse
 
 router = APIRouter(prefix="/documents", tags=["Documents & Access Control"])
 
@@ -151,6 +155,131 @@ async def upload_document(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
         metadata={"title": doc.title, "filename": doc.original_filename, "size": file_size, "hash": doc.file_hash_sha256}
+    )
+
+    return doc
+
+@router.post("/upload-intent", response_model=UploadIntentResponse)
+def create_upload_intent(
+    intent_in: UploadIntentRequest,
+    current_user: User = Depends(require_owner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Creates an authorized presigned S3 upload intent for client-side direct uploads.
+    Enforces authorization, size constraints (<= 10MB), and isolates documents.
+    """
+    if intent_in.file_size <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size must be greater than 0 bytes."
+        )
+
+    if intent_in.file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum allowed size of {MAX_FILE_SIZE / (1024 * 1024):.0f}MB."
+        )
+
+    clean_filename = os.path.basename(intent_in.filename).strip()
+    if not clean_filename:
+        clean_filename = "document.bin"
+
+    file_uuid = str(uuid.uuid4())
+    _, ext = os.path.splitext(clean_filename)
+    safe_ext = ext.lower() if ext else ".bin"
+    storage_path = f"documents/{file_uuid}{safe_ext}"
+
+    content_type = intent_in.mime_type or "application/octet-stream"
+    upload_url = storage_manager.get_presigned_upload_url(
+        storage_identifier=storage_path,
+        content_type=content_type,
+        expires_in=300
+    )
+
+    if not upload_url:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate secure upload authorization URL."
+        )
+
+    return UploadIntentResponse(
+        upload_url=upload_url,
+        storage_path=storage_path,
+        file_uuid=file_uuid,
+        max_size=MAX_FILE_SIZE
+    )
+
+@router.post("/confirm-upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+def confirm_upload(
+    confirm_in: ConfirmUploadRequest,
+    request: Request,
+    current_user: User = Depends(require_owner_or_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Confirms an authorized direct S3 upload, verifies object integrity,
+    creates the document record in PostgreSQL, and appends to the immutable audit log.
+    """
+    # Prevent path traversal
+    if not confirm_in.storage_path.startswith("documents/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid storage path identifier."
+        )
+
+    if confirm_in.file_size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File exceeds maximum allowed size."
+        )
+
+    # Verify object existence and size in storage
+    meta = storage_manager.get_object_metadata(confirm_in.storage_path)
+    if not meta:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file not found in storage. Ensure upload completed successfully."
+        )
+
+    if meta["size"] != confirm_in.file_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Uploaded file size ({meta['size']}) does not match declared size ({confirm_in.file_size})."
+        )
+
+    clean_filename = os.path.basename(confirm_in.original_filename).strip()
+    if not clean_filename:
+        clean_filename = "document.bin"
+
+    doc = Document(
+        title=confirm_in.title.strip() or clean_filename,
+        original_filename=clean_filename,
+        storage_path=confirm_in.storage_path,
+        file_size=confirm_in.file_size,
+        file_hash_sha256=confirm_in.file_hash_sha256.lower(),
+        mime_type=confirm_in.mime_type or "application/octet-stream",
+        category=confirm_in.category or "General",
+        owner_id=current_user.id
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    record_audit_event(
+        db=db,
+        action=AuditAction.DOC_UPLOAD,
+        user_id=current_user.id,
+        document_id=doc.id,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        metadata={
+            "title": doc.title,
+            "filename": doc.original_filename,
+            "size": doc.file_size,
+            "hash": doc.file_hash_sha256,
+            "method": "direct_presigned_s3"
+        }
     )
 
     return doc
@@ -315,6 +444,16 @@ def download_document(
     )
 
     if storage_manager.backend == "s3":
+        presigned_url = storage_manager.get_presigned_download_url(
+            doc.storage_path,
+            filename=doc.original_filename,
+            expires_in=300
+        )
+        if presigned_url:
+            return RedirectResponse(
+                url=presigned_url,
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT
+            )
         return StreamingResponse(
             storage_manager.get_stream(doc.storage_path),
             media_type=doc.mime_type,

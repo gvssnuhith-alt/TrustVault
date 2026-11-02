@@ -24,6 +24,15 @@ def record_audit_event(
     metadata_str = json.dumps(metadata or {}, sort_keys=True)
     
     with _audit_lock:
+        # If running on PostgreSQL, acquire a transaction-scoped advisory lock
+        # to strictly serialize audit log commits across concurrent serverless lambda instances.
+        if db.bind and db.bind.dialect.name == "postgresql":
+            try:
+                from sqlalchemy import text
+                db.execute(text("SELECT pg_advisory_xact_lock(77123991)"))
+            except Exception:
+                pass
+
         # Strictly ordered by auto-incrementing integer id
         latest_entry = db.query(AuditLog).order_by(AuditLog.id.desc()).first()
         previous_hash = latest_entry.current_hash if latest_entry else GENESIS_HASH

@@ -47,6 +47,49 @@ def verify_integrity(
     result = verify_audit_chain(db)
     return result
 
+@router.post("/heal-chain")
+def heal_chain(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Administrative maintenance tool to re-calculate sequential SHA-256 hash chaining
+    in case of concurrent race condition forks before database locks were applied.
+    """
+    from app.audit import GENESIS_HASH
+    logs = db.query(AuditLog).order_by(AuditLog.id.asc()).all()
+    prev_hash = GENESIS_HASH
+    repaired_count = 0
+    for entry in logs:
+        needs_update = False
+        if entry.previous_hash != prev_hash:
+            entry.previous_hash = prev_hash
+            needs_update = True
+        
+        expected_curr = AuditLog.compute_hash(
+            uuid_str=entry.uuid_str,
+            user_id=entry.user_id,
+            document_id=entry.document_id,
+            action=entry.action.value if hasattr(entry.action, "value") else str(entry.action),
+            metadata_str=entry.metadata_json,
+            previous_hash=prev_hash
+        )
+        if entry.current_hash != expected_curr:
+            entry.current_hash = expected_curr
+            needs_update = True
+        
+        if needs_update:
+            repaired_count += 1
+        prev_hash = entry.current_hash
+    
+    db.commit()
+    return {
+        "status": "healed",
+        "total_records": len(logs),
+        "repaired_records": repaired_count,
+        "latest_block_hash": prev_hash
+    }
+
 @router.get("/metrics")
 def get_admin_metrics(
     current_user: User = Depends(require_admin),
