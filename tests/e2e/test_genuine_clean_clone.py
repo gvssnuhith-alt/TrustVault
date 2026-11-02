@@ -1,3 +1,12 @@
+import stat
+
+def remove_readonly(func, path, excinfo):
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+def force_remove_dir(path):
+    if os.path.exists(path):
+        shutil.rmtree(path, onerror=remove_readonly)
 import os
 import sys
 import shutil
@@ -24,7 +33,7 @@ def main():
     # 1. Clean existing clone dir if present
     if os.path.exists(CLONE_DIR):
         print(f"Cleaning existing clone dir: {CLONE_DIR}")
-        shutil.rmtree(CLONE_DIR, ignore_errors=True)
+        force_remove_dir(CLONE_DIR)
 
     # 2. Clone repository into clean directory
     print(f"1. Cloning repo from {SRC_REPO} to {CLONE_DIR}...")
@@ -199,7 +208,7 @@ def main():
         subprocess.run(f"taskkill /F /PID {proc_backend.pid}", shell=True, capture_output=True)
         # Clean up directory
         time.sleep(1)
-        shutil.rmtree(CLONE_DIR, ignore_errors=True)
+        force_remove_dir(CLONE_DIR)
         print("Clean clone workspace cleaned up.")
 
 if __name__ == "__main__":

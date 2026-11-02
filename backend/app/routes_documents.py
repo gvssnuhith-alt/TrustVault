@@ -434,10 +434,21 @@ def revoke_permission(
     if doc.owner_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can revoke permissions")
 
-    # Find active permissions matching either grantee_id or permission id
+    # Resolve grantee identifier (may be user UUID, permission UUID, email, or username)
+    user_match = db.query(User).filter(
+        or_(
+            User.id == grantee_id,
+            func.lower(User.email) == grantee_id.lower(),
+            func.lower(User.username) == grantee_id.lower()
+        )
+    ).first()
+    target_user_id = user_match.id if user_match else grantee_id
+
+    # Find active permissions matching either grantee_id, target_user_id or permission id
     perms = db.query(DocumentPermission).filter(
         DocumentPermission.document_id == doc.id,
         or_(
+            DocumentPermission.grantee_id == target_user_id,
             DocumentPermission.grantee_id == grantee_id,
             DocumentPermission.id == grantee_id
         ),
