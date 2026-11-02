@@ -660,7 +660,7 @@ export function App() {
     <div className="min-h-screen bg-black text-zinc-100 flex flex-col font-sans selection:bg-purple-600 selection:text-white overflow-x-hidden">
       {/* Header */}
       <header className="border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur sticky top-0 z-30 px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2 overflow-x-hidden">
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div id="nav-brand-logo" className="flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.2)] shrink-0">
             <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
           </div>
@@ -670,6 +670,10 @@ export function App() {
               <span className="text-[9px] sm:text-[10px] font-mono px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded bg-zinc-800 border border-zinc-700 text-purple-300 font-semibold hidden xs:inline-block">
                 ZERO-TRUST
               </span>
+              <div id="system-status-indicator" className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-[9px] font-mono">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>SYSTEM ACTIVE</span>
+              </div>
             </div>
             <p className="text-[11px] text-zinc-400 font-medium hidden md:block">Cryptographically Verified Document Governance</p>
           </div>
@@ -1823,7 +1827,7 @@ export function App() {
       {/* MODAL 3: Profile & Session Details Modal */}
       {showProfileModal && currentUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-5 max-w-md w-full shadow-2xl flex flex-col gap-4">
+          <div id="profile-modal-dialog" className="bg-zinc-950 border border-zinc-800 rounded-xl p-5 max-w-md w-full shadow-2xl flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2 font-semibold text-sm text-white">
                 <UserIcon className="h-4 w-4 text-purple-400" />
