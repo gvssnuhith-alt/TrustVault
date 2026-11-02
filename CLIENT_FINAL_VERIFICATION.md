@@ -166,16 +166,35 @@ Every control was audited using Playwright locators with real DOM interaction:
 
 ---
 
-## 8. Cloud Deployment Status (Separate Audit)
+## 8. Cloud Deployment Status & Infrastructure Boundary Notice
 
-**IMPORTANT: Localhost success is NOT reported as production success.**
+### Explicit Infrastructure Boundary: 'Backend Ready' Indicator Scope
+> **CRITICAL ARCHITECTURAL DISTINCTION:**  
+> The green **"Backend ready"** indicator visible in Playwright test screenshots (`02_admin_dashboard.png`, `04_owner_dashboard.png`, etc.) reflects **ONLY** the status of the **local development backend server (`127.0.0.1:8000`)** during client-side testing.  
+> - It does **NOT** reflect or imply that the Render cloud backend is reachable.  
+> - It does **NOT** reflect or imply that the Cloudflare R2 bucket is provisioned, connected, or operational.  
+> - Localhost test results and cloud infrastructure readiness are maintained as strictly separate audit outcomes.
 
-| Cloud Service | URL | Live Probe Result | Root Cause |
+### Independent 3-Tier Verification Matrix
+
+| Infrastructure Tier | Target Environment | Verified Components | Status | Operational Detail |
+|---|---|---|---|---|
+| **Tier 1: Localhost Application** | Local workstation (`127.0.0.1:5173` / `8000`) | Frontend UI, local Uvicorn backend, local DB & disk driver | **PASS** | 51/51 automated Playwright checks passed across Chromium, Firefox, WebKit. |
+| **Tier 2: Render Cloud Platform** | Production PaaS (`trustvault-backend.onrender.com`) | Render Web Service container, cloud PostgreSQL instance | **BLOCKED / OFFLINE** | Connection hangs on TCP establishment (>90s timeout). Render free-tier PostgreSQL expired. |
+| **Tier 3: Cloud Object Storage** | Cloudflare R2 / AWS S3 S3-compatible API | Private bucket, bucket policy, access keys, signatures | **BLOCKED / NOT CONNECTED** | Storage driver (`StorageManager`) implemented and contract-tested locally; live cloud operations blocked by missing remote credentials. |
+
+---
+
+## 9. Live Remote Cloud Probing Telemetry
+
+| Remote Endpoint | Target Resource | Live Result | Root Cause Analysis |
 |---|---|---|---|
-| **Vercel Frontend** | `https://frontend-eight-murex-qkuodo653p.vercel.app` | **HTTP 200 OK** | Edge CDN online; serving compiled React SPA |
-| **Render Backend** | `https://trustvault-backend.onrender.com` | **TIMEOUT (>90s)** | Render free tier PostgreSQL expired (30-day cap) |
-| **Render Healthz** | `https://trustvault-backend.onrender.com/healthz` | **TIMEOUT (>90s)** | Backend pod suspended pending database reconnect |
-| **Vercel API Proxy** | `https://...vercel.app/api/healthz` | **TIMEOUT (>90s)** | Upstream proxy hangs waiting for Render backend |
+| `https://frontend-eight-murex-qkuodo653p.vercel.app` | Vercel Edge CDN | **HTTP 200 OK** (931ms) | Compiled Vite SPA deployed and active at edge. |
+| `https://trustvault-backend.onrender.com/healthz` | Render Web Service | **TIMEOUT (>90s)** | Render free tier instance suspended/unreachable. |
+| `https://frontend-eight-murex-qkuodo653p.vercel.app/api/healthz` | Vercel API Reverse Proxy | **TIMEOUT (>90s)** | Vercel correctly proxies to Render origin; upstream times out. |
 
-**Cloud Blocker Summary**:
-The client-side application and backend architecture are fully verified and functional on local infrastructure. Production cloud activation requires provisioning a fresh PostgreSQL database connection string (`DATABASE_URL`) and Cloudflare R2 bucket credentials on Render.
+**Cloud Remediation Prerequisites**:
+To transition the cloud tiers from BLOCKED to PASS:
+1. Provide active cloud `DATABASE_URL` or reactivate the Render PostgreSQL database.
+2. Provide Cloudflare R2 bucket name (`S3_BUCKET_NAME`), endpoint URL (`S3_ENDPOINT_URL`), and access keys (`S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`).
+3. Deploy latest blueprint to Render and execute live remote end-to-end verification.
