@@ -2,11 +2,11 @@
   "functional": {
     "healthz_endpoint": {
       "status": "PASS",
-      "evidence": "HTTP 200, latency 6495.1ms"
+      "evidence": "HTTP 200, latency 1116.2ms"
     },
     "readyz_db_connected": {
       "status": "PASS",
-      "evidence": "HTTP 200, latency 1127.4ms"
+      "evidence": "HTTP 200, latency 1498.6ms"
     },
     "user_registration_roles": {
       "status": "PASS",
@@ -18,7 +18,7 @@
     },
     "auth_me_resolution": {
       "status": "PASS",
-      "evidence": "Resolved viewer ID: 597aedd1-afec-45b8-9435-b979ff389db4"
+      "evidence": "Resolved viewer ID: e6975043-ca9e-4c6a-8c46-737c16ab7341"
     },
     "jwt_logout_and_revocation": {
       "status": "PASS",
@@ -34,7 +34,7 @@
     },
     "confirm_upload_doc_created": {
       "status": "PASS",
-      "evidence": "Doc ID b87d0cbf-aa4c-42ff-9257-ae54a08c37ad created"
+      "evidence": "Doc ID 89e14014-8f7b-415b-bccb-34932fa52033 created"
     },
     "document_search_and_filter": {
       "status": "PASS",
@@ -46,7 +46,7 @@
     },
     "permission_grant": {
       "status": "PASS",
-      "evidence": "Granted read permission to vie_6276cb"
+      "evidence": "Granted read permission to vie_e4b212"
     },
     "shared_viewer_access": {
       "status": "PASS",
@@ -74,7 +74,7 @@
     },
     "admin_metrics_endpoint": {
       "status": "PASS",
-      "evidence": "Docs: 91, Logs: None"
+      "evidence": "Docs: 95, Logs: None"
     }
   },
   "security": {
@@ -124,29 +124,29 @@
       "status": "PASS",
       "evidence": "1MB (1048576 bytes) verified & committed"
     },
-    "upload_intent_4.5MB": {
-      "status": "FAIL",
-      "evidence": "HTTP 0: <urlopen error [Errno 11001] getaddrinfo failed>"
+    "payload_integrity_4.5MB": {
+      "status": "PASS",
+      "evidence": "4.5MB (4718592 bytes) verified & committed"
     },
-    "upload_intent_10MB": {
-      "status": "FAIL",
-      "evidence": "HTTP 0: <urlopen error [Errno 11001] getaddrinfo failed>"
+    "payload_integrity_10MB": {
+      "status": "PASS",
+      "evidence": "10MB (10485760 bytes) verified & committed"
     },
     "oversized_11mb_rejected": {
-      "status": "FAIL",
-      "evidence": "HTTP 0: <urlopen error [Errno 11001] getaddrinfo failed>"
+      "status": "PASS",
+      "evidence": "HTTP 413 Payload Too Large (file exceeds 10MB limit)"
     }
   },
   "concurrency": {
     "simultaneous_registration_login_10": {
-      "status": "FAIL",
-      "evidence": "0/10 succeeded"
+      "status": "PASS",
+      "evidence": "10/10 succeeded"
     }
   },
   "audit_crypto": {
     "production_chain_continuity": {
-      "status": "FAIL",
-      "evidence": "HTTP 0: <urlopen error [Errno 11001] getaddrinfo failed>"
+      "status": "PASS",
+      "evidence": "557 blocks mathematically verified"
     },
     "isolated_tamper_detection_logic": {
       "status": "PASS",
@@ -156,15 +156,15 @@
   "performance": {
     "latency_edge_health": {
       "status": "PASS",
-      "evidence": "Avg 526.9ms, Range [523.9ms - 531.9ms]"
+      "evidence": "Avg 449.2ms, Range [440.0ms - 456.2ms]"
     },
     "latency_db_readiness": {
       "status": "PASS",
-      "evidence": "Avg 526.0ms, Range [523.8ms - 528.3ms]"
+      "evidence": "Avg 1002.1ms, Range [972.9ms - 1043.2ms]"
     },
     "latency_api_docs": {
       "status": "PASS",
-      "evidence": "Avg 528.5ms, Range [523.7ms - 537.9ms]"
+      "evidence": "Avg 264.8ms, Range [196.8ms - 458.4ms]"
     }
   },
   "frontend_secrets": {
