@@ -31,5 +31,6 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD", "")
     ALLOW_DEMO_SEED: bool = os.getenv("ALLOW_DEMO_SEED", "true").lower() in ("true", "1", "yes")
+    ALLOW_EPHEMERAL_STORAGE: bool = os.getenv("ALLOW_EPHEMERAL_STORAGE", "false").lower() in ("true", "1", "yes")
 
 settings = Settings()

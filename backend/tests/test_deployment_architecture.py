@@ -98,6 +98,21 @@ def test_seed_idempotency_and_production_security():
         seed_database()
         assert db.query(User).count() == 1
 
+        # Test case: Ordinary users exist, but no admin
+        # Clear admin, add ordinary user
+        db.query(User).delete()
+        db.commit()
+        ordinary = User(email="ordinary@user.com", username="ordinary", hashed_password="pw", role=UserRole.VIEWER)
+        db.add(ordinary)
+        db.commit()
+
+        # Running seed with INITIAL_ADMIN_PASSWORD should provision admin alongside ordinary user
+        seed_database()
+        assert db.query(User).count() == 2
+        admin_user = db.query(User).filter(User.role == UserRole.ADMIN).first()
+        assert admin_user is not None
+        assert admin_user.email == "admin@trustvault.io"
+
     finally:
         seed.SessionLocal = orig_session_local
         seed.engine = orig_seed_engine
@@ -105,6 +120,62 @@ def test_seed_idempotency_and_production_security():
         settings.ALLOW_DEMO_SEED = orig_demo
         settings.INITIAL_ADMIN_PASSWORD = ""
         db.close()
+
+def test_production_storage_safety_guard():
+    orig_env = settings.ENVIRONMENT
+    orig_ephemeral = settings.ALLOW_EPHEMERAL_STORAGE
+    try:
+        settings.ENVIRONMENT = "production"
+        settings.ALLOW_EPHEMERAL_STORAGE = False
+        settings.STORAGE_BACKEND = "local"
+
+        # Must raise RuntimeError to protect against accidental ephemeral disk data loss in production
+        with pytest.raises(RuntimeError) as exc_info:
+            StorageManager()
+        assert "Production safety violation" in str(exc_info.value)
+
+        # Opt-in explicitly allows it
+        settings.ALLOW_EPHEMERAL_STORAGE = True
+        sm = StorageManager()
+        assert sm.backend == "local"
+    finally:
+        settings.ENVIRONMENT = orig_env
+        settings.ALLOW_EPHEMERAL_STORAGE = orig_ephemeral
+        settings.STORAGE_BACKEND = "local"
+
+def test_admin_recovery_tool():
+    from app.admin_recovery import recover_admin
+    import app.admin_recovery as ar
+
+    test_engine = create_engine("sqlite:///:memory:")
+    TestingSession = sessionmaker(bind=test_engine)
+    Base.metadata.create_all(bind=test_engine)
+
+    orig_sl = ar.SessionLocal
+    orig_eng = ar.engine
+    ar.SessionLocal = TestingSession
+    ar.engine = test_engine
+
+    try:
+        # Recover admin with explicit password
+        ok = recover_admin(email="secadmin@trustvault.io", password="SafeRecoveryPass2026!")
+        assert ok is True
+
+        db = TestingSession()
+        admin = db.query(User).filter(User.email == "secadmin@trustvault.io").first()
+        assert admin is not None
+        assert admin.role == UserRole.ADMIN
+
+        # Verify password reset
+        ok2 = recover_admin(email="secadmin@trustvault.io", password="UpdatedRecoveryPass2026!")
+        assert ok2 is True
+        db.refresh(admin)
+        from app.auth import verify_password
+        assert verify_password("UpdatedRecoveryPass2026!", admin.hashed_password) is True
+        db.close()
+    finally:
+        ar.SessionLocal = orig_sl
+        ar.engine = orig_eng
 
 def test_database_persistence_across_simulated_restart():
     # Use on-disk sqlite database to simulate restart persistence

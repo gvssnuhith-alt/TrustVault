@@ -10,18 +10,19 @@ def seed_database():
     Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
     try:
-        # 1. Idempotency Check: Never recreate or overwrite existing users
-        existing_user_count = db.query(User).count()
-        if existing_user_count > 0:
-            print(f"Database already contains {existing_user_count} user(s). Skipping seed.")
-            return
-
-        # 2. Production Security Gate: Remove hardcoded default passwords in production
+        admin_exists = db.query(User).filter(User.role == UserRole.ADMIN).first() is not None
+        user_count = db.query(User).count()
         is_production = settings.ENVIRONMENT.lower() == "production"
+
+        # Production Gate: Strictly forbid default demo passwords
         if is_production and not settings.ALLOW_DEMO_SEED:
-            print("Production environment detected. Refusing to seed hardcoded demo credentials.")
+            if admin_exists:
+                print("Production environment: Administrator account already exists. Skipping provisioning.")
+                return
+
             if settings.INITIAL_ADMIN_PASSWORD:
-                print("Provisioning secure initial administrator from INITIAL_ADMIN_PASSWORD...")
+                # Do NOT log the password value
+                print("Production environment: Provisioning initial administrator from environment secret...")
                 admin = User(
                     email="admin@trustvault.io",
                     username="admin",
@@ -31,10 +32,23 @@ def seed_database():
                 db.add(admin)
                 db.commit()
                 db.refresh(admin)
-                record_audit_event(db, AuditAction.USER_REGISTER, user_id=admin.id, metadata={"role": "admin", "note": "Secure initial admin setup"})
-                print("Secure initial administrator provisioned.")
+                record_audit_event(
+                    db,
+                    AuditAction.USER_REGISTER,
+                    user_id=admin.id,
+                    metadata={"role": "admin", "note": "Initial administrator provisioned via environment secret"}
+                )
+                print("Production environment: Initial administrator account successfully created.")
             else:
-                print("Notice: INITIAL_ADMIN_PASSWORD not set. Waiting for initial administrator registration.")
+                if user_count > 0:
+                    print("Production warning: Ordinary users exist but no administrator found. Set INITIAL_ADMIN_PASSWORD or run admin_recovery tool.")
+                else:
+                    print("Production notice: INITIAL_ADMIN_PASSWORD not set. System awaiting initial setup.")
+            return
+
+        # Development / test environment
+        if user_count > 0:
+            print(f"Database already contains {user_count} user(s). Skipping seed.")
             return
 
         print("Seeding demo accounts for development / testing environment...")

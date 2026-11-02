@@ -39,6 +39,12 @@ class StorageManager:
                 self._s3_client = None
 
         if self.backend == "local":
+            if settings.ENVIRONMENT.lower() == "production" and not settings.ALLOW_EPHEMERAL_STORAGE:
+                raise RuntimeError(
+                    "Production safety violation: STORAGE_DIR cannot accidentally become the production storage backend "
+                    "on ephemeral cloud instances. Configure STORAGE_BACKEND=s3 (e.g. Cloudflare R2 / AWS S3) or "
+                    "explicitly set ALLOW_EPHEMERAL_STORAGE=true to opt into local ephemeral storage."
+                )
             os.makedirs(settings.STORAGE_DIR, exist_ok=True)
 
     async def save_file(

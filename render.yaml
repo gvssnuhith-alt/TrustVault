@@ -10,6 +10,8 @@ services:
     startCommand: python seed.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     envVars:
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
         fromDatabase:
           name: trustvault-db
@@ -20,26 +22,24 @@ services:
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "60"
-      - key: STORAGE_DIR
-        value: /var/data/trustvault_storage
       - key: STORAGE_BACKEND
-        value: local
-      # To use zero-cost persistent storage on Free tier without Render Starter disk:
-      # set STORAGE_BACKEND=s3 and populate Cloudflare R2 / S3 credentials below.
-      # - key: S3_BUCKET_NAME
-      #   value: your-r2-bucket
-      # - key: S3_ENDPOINT_URL
-      #   value: https://<accountid>.r2.cloudflarestorage.com
-      # - key: S3_ACCESS_KEY_ID
-      #   sync: false
-      # - key: S3_SECRET_ACCESS_KEY
-      #   sync: false
-    # NOTE: Render Disks require 'plan: starter' ($7/mo). Free tier rejects disk attachment.
-    # To run on Render Starter plan, change 'plan: free' above to 'plan: starter'.
-    disk:
-      name: trustvault-storage
-      mountPath: /var/data/trustvault_storage
-      sizeGB: 1
+        value: s3
+      - key: S3_BUCKET_NAME
+        sync: false
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_REGION_NAME
+        value: auto
+      - key: ALLOW_DEMO_SEED
+        value: "false"
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false
+      - key: ALLOW_EPHEMERAL_STORAGE
+        value: "false"
 
 databases:
   - name: trustvault-db
