@@ -101,4 +101,27 @@ This journal logs AI interactions, specifically documenting where AI suggestions
 * **Correction Implemented:**
   Configured standalone in-memory SQLite fixtures (`sqlite:///:memory:` with `StaticPool`) dedicated to the extended test module, ensuring complete isolation and allowing all 26 pytest cases to pass cleanly.
 
+---
+
+### Entry 9: 2026-11-02 - Audit Hash Chain Race Condition Under Concurrent Writes
+* **Task Requested:** Execute multi-threaded concurrency testing on permission grants and audit event logging.
+* **AI Output:**
+  Concurrent audit log writes executed across parallel threads resulted in identical `previous_hash` pointers, causing cryptographic verification failure (`/api/audit/verify` returned `tampered`).
+* **Defect Identified:**
+  `record_audit_event` read the latest entry from the database and computed SHA-256 before the previous transaction committed, creating a race condition under load.
+* **Correction Implemented:**
+  Wrapped `record_audit_event` in a module-level mutex lock (`_audit_lock = threading.Lock()`) in `backend/app/audit.py`, ensuring strict serialization of hash calculation and insertion. Intact chain verified under 15 simultaneous threads.
+
+---
+
+### Entry 10: 2026-11-02 - Permission Revocation by Grantee Username Resolution
+* **Task Requested:** Verify document sharing and revocation from a clean-clone repository installation.
+* **AI Output:**
+  Attempting to revoke permission using username (e.g. `viewer`) returned HTTP 404.
+* **Defect Identified:**
+  `revoke_permission` in `backend/app/routes_documents.py` only queried `User.id == grantee_id`, failing when the caller passed a username or email.
+* **Correction Implemented:**
+  Updated `revoke_permission` to resolve the user via `or_(User.id == grantee_id, func.lower(User.email) == grantee_id.lower(), func.lower(User.username) == grantee_id.lower())`.
+
+
 
