@@ -44,6 +44,7 @@ def health_check_root():
     }
 
 @app.get("/healthz")
+@app.get("/api/healthz")
 def health_check_healthz():
     return {
         "status": "healthy",
@@ -52,6 +53,7 @@ def health_check_healthz():
     }
 
 @app.get("/readyz")
+@app.get("/api/readyz")
 def readiness_check(response: Response, db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
