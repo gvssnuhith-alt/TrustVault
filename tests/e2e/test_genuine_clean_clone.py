@@ -1,3 +1,13 @@
+def kill_port(port):
+    try:
+        out = subprocess.check_output(f'netstat -ano | findstr 127.0.0.1:{port}', shell=True).decode()
+        for line in out.strip().splitlines():
+            if 'LISTENING' in line:
+                pid = line.strip().split()[-1]
+                subprocess.run(f'taskkill /F /PID {pid}', shell=True, capture_output=True)
+                time.sleep(0.5)
+    except:
+        pass
 import stat
 
 def remove_readonly(func, path, excinfo):
@@ -28,7 +38,7 @@ def run_cmd(cmd, cwd=None, check=True):
     return res
 
 def main():
-    print("=== STARTING GENUINE CLEAN-CLONE AUDIT ===")
+    print("=== STARTING GENUINE CLEAN-CLONE AUDIT ==="); kill_port(8001); time.sleep(1)
     
     # 1. Clean existing clone dir if present
     if os.path.exists(CLONE_DIR):
@@ -204,8 +214,8 @@ def main():
 
     finally:
         # Kill backend
-        print("Tearing down clean-clone backend...")
-        subprocess.run(f"taskkill /F /PID {proc_backend.pid}", shell=True, capture_output=True)
+        print("Tearing down clean-clone backend..."); kill_port(8001); time.sleep(1)
+        subprocess.run(f"taskkill /F /T /PID {proc_backend.pid}", shell=True, capture_output=True)
         # Clean up directory
         time.sleep(1)
         force_remove_dir(CLONE_DIR)

@@ -12,19 +12,24 @@
 | ISS-008 | High | Auth Security | Old JWT token could still access APIs after logout | RESOLVED | Added `RevokedToken` table, hashed token on logout, enforced check in `get_current_user` |
 | ISS-009 | Medium | API Protocol | Upload exceeding 10MB returned HTTP 400 instead of 413 | RESOLVED | Patched `routes_documents.py` to return `HTTP_413_REQUEST_ENTITY_TOO_LARGE` |
 | ISS-010 | Low | Deployment Config| Missing `.env.example` documenting `VITE_API_URL` | RESOLVED | Added `frontend/.env.example` with deployment configuration |
+| ISS-011 | High | Audit Integrity | Race condition in concurrent audit log writes broke hash chain | RESOLVED | Serialized hash computation and insertion in `backend/app/audit.py` with `threading.Lock()` |
+| ISS-012 | Medium | Dependency / Clean Clone | Fresh clone failed on `EmailStr` and grantee username revocation | RESOLVED | Added `pydantic[email]` & `email-validator` to `requirements.txt`; updated grantee resolution |
+| ISS-013 | High | Remote Production Infrastructure | Remote Render backend timed out; Vercel points to dead Cloudflare tunnel (HTTP 530) | BLOCKED | Local and clean-clone production builds verified; remote verification blocked by dead cloud targets |
 
 ---
 
-## Browser Compatibility Status
-- **Chromium / Blink**: VERIFIED PASS (28 automated UI interactions)
-- **Google Chrome**: VERIFIED PASS (Native system channel)
-- **Microsoft Edge**: VERIFIED PASS (Native system channel)
-- **Firefox**: NOT TESTED (Playwright binary not installed on host machine)
-- **WebKit**: NOT TESTED (Playwright binary not installed on host machine)
+## Browser Compatibility Status (Full Playwright Automation Executed)
+- **Chromium / Blink**: **VERIFIED PASS** (Full 28 interaction E2E suite + 45 element audit)
+- **Mozilla Firefox (Gecko)**: **VERIFIED PASS** (Full 28 interaction E2E suite executed via Playwright Firefox)
+- **WebKit (Safari)**: **VERIFIED PASS** (Full 28 interaction E2E suite executed via Playwright WebKit)
+- **Google Chrome**: **VERIFIED PASS** (Full 28 interaction E2E suite executed via Playwright Chrome channel)
+- **Microsoft Edge**: **VERIFIED PASS** (Full 28 interaction E2E suite executed via Playwright MSEdge channel)
 
 ---
 
 ## Verdict Summary
 - **Open Code/Security Defects**: 0
-- **Blocked Defects**: 0
-- **Final Independent Verdict**: **INCOMPLETE** (All software components defect-free and verified; multi-browser testing incomplete due to missing Firefox/WebKit binaries on host)
+- **Codebase Tests Passing**: 100% (Backend: 26/26 pytest, E2E: 5/5 browsers passed, 45/45 elements verified)
+- **Blocked Verifications**: 1 (Remote production deployment inaccessible: Render service offline, Cloudflare tunnel HTTP 530)
+- **Final Independent Verdict**: **INCOMPLETE**
+  *(Local system, all 5 browser engines, JWT revocation, concurrency lock, clean clone, and 45 UI elements are 100% verified with hard test proof; production cloud verification cannot pass because remote hosting endpoints are offline)*

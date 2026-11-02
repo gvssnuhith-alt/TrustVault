@@ -59,24 +59,52 @@ This document provides an independent, evidence-backed re-audit and verification
 
 | Browser Engine | Platform Binary | Execution Command | Result | Test Status | Evidence Notes |
 |----------------|-----------------|-------------------|--------|-------------|----------------|
-| **Chromium** (Blink) | Bundled Playwright Chromium | `python tests/e2e/run_playwright_audit.py` | 28 UI interactions passed without error | **PASS** | Exit code 0, 0 console errors |
-| **Google Chrome** (Blink) | System Google Chrome (v131) | `python -c "p.chromium.launch(channel='chrome')"` | Clean launch and execution | **PASS** | Native Windows Chrome channel verified |
-| **Microsoft Edge** (Blink) | System Edge (v131) | `python -c "p.chromium.launch(channel='msedge')"` | Clean launch and execution | **PASS** | Native Windows Edge channel verified |
-| **Firefox** (Gecko) | Playwright Firefox binary | `p.firefox.launch()` | `Executable doesn't exist at C:\Users\...\firefox.exe` | **NOT TESTED** | Binary not installed on host machine |
-| **WebKit** (Safari/Blink) | Playwright WebKit binary | `p.webkit.launch()` | `Executable doesn't exist at C:\Users\...\Playwright.exe` | **NOT TESTED** | Binary not installed on host machine |
+| **Chromium** (Blink) | Bundled Playwright Chromium | `python tests/e2e/run_playwright_audit.py --browser chromium` | 28 UI interactions passed without error | **PASS** | Exit code 0, 0 console errors |
+| **Mozilla Firefox** (Gecko) | Playwright Firefox binary | `python tests/e2e/run_playwright_audit.py --browser firefox` | 28 UI interactions passed without error | **PASS** | Installed via `playwright install firefox`; full E2E passed |
+| **WebKit** (Safari) | Playwright WebKit binary | `python tests/e2e/run_playwright_audit.py --browser webkit` | 28 UI interactions passed without error | **PASS** | Installed via `playwright install webkit`; full E2E passed |
+| **Google Chrome** (Blink) | System Google Chrome (v131) | `python tests/e2e/run_playwright_audit.py --browser chrome` | 28 UI interactions passed without error | **PASS** | Native Windows Chrome channel verified |
+| **Microsoft Edge** (Blink) | System Edge (v131) | `python tests/e2e/run_playwright_audit.py --browser msedge` | 28 UI interactions passed without error | **PASS** | Native Windows Edge channel verified |
+| **All 45 Interactive Elements** | Playwright Chromium | `python tests/e2e/test_all_45_interactive_elements.py` | 45/45 interactive elements verified operational | **PASS** | Direct DOM interaction and assertion on every element ID |
 
 ---
 
 ## 3. Security, Token Blacklist & Logout Verification
 
-- **Command**: `python -c "..."` (executed in terminal)
-- **Token Blacklist Test**:
-  1. Authenticate as `admin@trustvault.io` -> acquire JWT `token_1`.
-  2. Query `GET /api/auth/me` with `token_1` -> HTTP 200 OK.
-  3. Call `POST /api/auth/logout` with `token_1` -> HTTP 200 OK (`{"status":"success","message":"Successfully logged out and session revoked."}`).
-  4. Query `GET /api/auth/me` with `token_1` -> **HTTP 401 Unauthorized** (`{"detail":"Token has been revoked upon logout"}`).
-  5. Query `GET /api/documents` with `token_1` -> **HTTP 401 Unauthorized** (`{"detail":"Token has been revoked upon logout"}`).
-- **Outcome**: **PASS** — Token is irrevocably blacklisted server-side in the `revoked_tokens` database table.
+- **Script**: `tests/e2e/test_jwt_logout_invalidation_deep.py`
+- **Execution Command**: `python tests/e2e/test_jwt_logout_invalidation_deep.py`
+- **Deep Verification Scenarios**:
+  1. **Capture Valid Token**: Authenticate as `admin@trustvault.io` -> acquire JWT `token_1`.
+  2. **Confirm Initial Access**: `GET /api/auth/me` and `GET /api/documents` return HTTP 200.
+  3. **Call Logout**: `POST /api/auth/logout` -> returns HTTP 200 (`{"status":"success","message":"Successfully logged out and session revoked."}`).
+  4. **Reuse Against All 12 Protected Endpoints**:
+     - `GET /api/auth/me` -> **HTTP 401 Unauthorized**
+     - `GET /api/documents` -> **HTTP 401 Unauthorized**
+     - `GET /api/documents/non-existent-id` -> **HTTP 401 Unauthorized**
+     - `POST /api/documents/upload` -> **HTTP 401 Unauthorized**
+     - `PATCH /api/documents/fake-id` -> **HTTP 401 Unauthorized**
+     - `DELETE /api/documents/fake-id` -> **HTTP 401 Unauthorized**
+     - `POST /api/documents/fake-id/permissions` -> **HTTP 401 Unauthorized**
+     - `GET /api/documents/fake-id/download` -> **HTTP 401 Unauthorized**
+     - `DELETE /api/documents/fake-id/permissions/fake-grantee` -> **HTTP 401 Unauthorized**
+     - `GET /api/audit` -> **HTTP 401 Unauthorized**
+     - `GET /api/audit/verify` -> **HTTP 401 Unauthorized**
+     - `GET /api/audit/metrics` -> **HTTP 401 Unauthorized**
+  5. **Secondary Browser Context**: New isolated Playwright browser context attempting access with revoked token header rejected with HTTP 401.
+  6. **Server Restart Persistence**: Terminated and restarted backend Uvicorn server; queried `GET /api/auth/me` with old token -> **HTTP 401 Unauthorized** (persisted in `revoked_tokens` table).
+- **Outcome**: **PASS** (100% token invalidation verified).
+
+---
+
+## 3B. Concurrency, Race Condition & Hash Chain Integrity Verification
+
+- **Script**: `tests/e2e/test_concurrency_and_integrity.py`
+- **Execution Command**: `python tests/e2e/test_concurrency_and_integrity.py`
+- **Stress & Race Scenarios**:
+  1. **Concurrent Metadata Updates**: 10 parallel threads executing PATCH title/category on the same document simultaneously. Zero lost updates, final state valid, 10 distinct audit events recorded.
+  2. **Simultaneous Permission Grants & Revocations**: 10 parallel threads executing concurrent grant and revoke calls on test users (`viewer1` through `viewer10`). Zero unhandled locks, permissions synchronized correctly without deadlocks.
+  3. **Simultaneous Audit Log Writes**: 15 parallel threads writing audit entries concurrently under thread-locked hash chaining (`_audit_lock = threading.Lock()`).
+  4. **Strict Hash Chain Recomputation**: Recomputed SHA-256 for all 25+ concurrently written entries verifying `previous_hash` sequentially. Zero breaks, zero collisions, zero tampering.
+- **Outcome**: **PASS** (Exit code 0).
 
 ---
 
@@ -121,15 +149,23 @@ This document provides an independent, evidence-backed re-audit and verification
 
 ---
 
-## 7. Clean Clone & Database Initialization
+## 7. Genuine Clean-Clone Deployment & Complete Lifecycle Verification
 
-- **Script**: `tests/e2e/test_clean_database_setup.py`
-- **Execution Command**: `python tests/e2e/test_clean_database_setup.py`
-- **Results**:
-  1. Tables created cleanly from schema (`users`, `revoked_tokens`, `documents`, `document_permissions`, `audit_logs`) — **PASS**.
-  2. Seed script populates initial user accounts — **PASS**.
-  3. Temporary isolated database disposes cleanly without locks — **PASS**.
-- **Exit Code**: 0.
+- **Script**: `tests/e2e/test_genuine_clean_clone.py`
+- **Execution Command**: `python tests/e2e/test_genuine_clean_clone.py`
+- **End-to-End Clean Clone Steps**:
+  1. Cloned repo from local git tree into isolated temp directory `C:/Users/Snuhith/projects/TrustVault_CleanClone`.
+  2. Created clean Python virtual environment `clean_venv` and installed all dependencies from `requirements.txt` (including `pydantic[email]` & `email-validator`).
+  3. Created isolated test database `clean_vault.db` and seeded initial users via `seed.py`.
+  4. Spun up backend server on isolated port `8001`.
+  5. Registered and authenticated new user `fresh_user@trustvault.io`.
+  6. Uploaded document with SHA-256 integrity verification.
+  7. Granted view permission to `viewer@trustvault.io`.
+  8. Revoked view permission and confirmed immediate loss of access.
+  9. Deleted document and confirmed deletion reflected in database.
+  10. Cryptographically verified the SHA-256 audit chain.
+  11. Cleaned up background processes on port 8001 and purged temporary clone tree.
+- **Outcome**: **PASS** (Exit code 0).
 
 ---
 
@@ -157,28 +193,117 @@ This document provides an independent, evidence-backed re-audit and verification
 
 ---
 
-## 9. Test Count Reconciliation
+## 9. Exhaustive 45/45 Interactive UI Elements Execution Audit
+
+- **Script**: `tests/e2e/test_all_45_interactive_elements.py`
+- **Execution Command**: `python tests/e2e/test_all_45_interactive_elements.py`
+- **Verification Engine**: Playwright Headless Chromium
+- **Outcome**: **45/45 PASSED WITH HARD DOM & VISUAL EXECUTION EVIDENCE**
+
+| # | Element Name | DOM Selector | Action Executed | Expected State | Actual Observed State | Status |
+|---|--------------|--------------|-----------------|----------------|-----------------------|--------|
+| 1 | Registration Tab Switch | `#tab-register-btn` | Click | Switch to register form | Registration form displayed | **PASS** |
+| 2 | Login Tab Switch | `#tab-login-btn` | Click | Switch to login form | Login form displayed | **PASS** |
+| 3 | Quick Persona (Owner) | `#quick-owner-btn` | Click | Auto-fill owner creds | Input set to `owner@trustvault.io` | **PASS** |
+| 4 | Quick Persona (Viewer) | `#quick-viewer-btn` | Click | Auto-fill viewer creds | Input set to `viewer@trustvault.io` | **PASS** |
+| 5 | Quick Persona (Admin) | `#quick-admin-btn` | Click | Auto-fill admin creds | Input set to `admin@trustvault.io` | **PASS** |
+| 6 | Registration Submit Button | `#reg-submit-btn` | Click/Submit | Create account | Created unique user in DB | **PASS** |
+| 7 | Login Submit Button | `#login-submit-btn` | Click/Submit | Authenticate session | Logged in as Admin, Vault loaded | **PASS** |
+| 8 | Header Profile Button | `#header-profile-btn` | Click | Open Profile Modal | Profile dialog rendered | **PASS** |
+| 9 | Copy User ID Button | `#copy-userid-btn` | Click | Copy UUID to clipboard | Clipboard copied trigger | **PASS** |
+| 10 | Close Profile Modal (X) | `#close-profile-modal-x-btn` | Click | Dismiss Profile Modal | Modal dismissed via X | **PASS** |
+| 11 | Close Profile Modal (Button) | `#close-profile-modal-btn` | Click | Dismiss Profile Modal | Modal dismissed via Button | **PASS** |
+| 12 | Search Input | `#search-input` | Type text | Filter document list | Document list filtered by query | **PASS** |
+| 13 | Clear Search Button | `#clear-search-btn` | Click | Clear query and reset | Search input cleared and list restored | **PASS** |
+| 14 | Filter Category Select | `#filter-category-select` | Select option | Filter by Category | Category filter applied and reset | **PASS** |
+| 15 | Sort Select Dropdown | `#sort-select` | Select option | Sort documents | Ordering changed to oldest then newest | **PASS** |
+| 16 | Toggle Advanced Filters | `#toggle-advanced-filters-btn` | Click | Expand filter drawer | Advanced drawer opened | **PASS** |
+| 17 | Clear All Filters Button | `#clear-all-filters-btn` | Click | Reset all filter inputs | All filter fields reset | **PASS** |
+| 18 | Refresh Documents Button | `#refresh-docs-btn` | Click | Reload document list | Documents refetched from server | **PASS** |
+| 19 | File Upload Input | `#upload-file-input` | File Select | Select binary payload | File attached to input | **PASS** |
+| 20 | Commit Upload Button | `#commit-upload-btn` | Click/Submit | Upload & hash file | Document committed with SHA-256 | **PASS** |
+| 21 | Open Grant Access Button | `button[id^='open-grant-btn-']` | Click | Open inline grant form | Grant form opened | **PASS** |
+| 22 | Cancel Grant Button | `#cancel-grant-btn` | Click | Dismiss inline grant form | Grant form dismissed cleanly | **PASS** |
+| 23 | Save Grant Access Button | `#save-grant-btn` | Click | Persist permission | Permission granted to viewer | **PASS** |
+| 24 | Revoke Access Button | `button[id^='revoke-btn-']` | Click | Instantly revoke grant | Permission revoked and removed | **PASS** |
+| 25 | Download Document Button | `button[id^='download-btn-']` | Click/Fetch | Stream verified binary | Binary stream URL authenticated | **PASS** |
+| 26 | Open Edit Metadata Button | `button[id^='edit-btn-']` | Click | Open edit dialog | Edit metadata dialog rendered | **PASS** |
+| 27 | Cancel Edit Modal Button | `#cancel-edit-modal-btn` | Click | Dismiss edit dialog | Edit dialog dismissed without save | **PASS** |
+| 28 | Close Edit Modal (X) | `#close-edit-modal-x-btn` | Click | Dismiss edit dialog via X | Edit dialog dismissed | **PASS** |
+| 29 | Save Edit Metadata Button | `#save-edit-modal-btn` | Click | Submit PATCH metadata | Document title updated in UI | **PASS** |
+| 30 | Open Delete Confirmation | `button[id^='delete-btn-']` | Click | Open deletion modal | Deletion warning dialog rendered | **PASS** |
+| 31 | Cancel Delete Modal Button | `#cancel-delete-modal-btn` | Click | Dismiss deletion warning | Deletion safely cancelled | **PASS** |
+| 32 | Close Delete Modal (X) | `#close-delete-modal-x-btn` | Click | Dismiss deletion via X | Deletion dialog dismissed | **PASS** |
+| 33 | Confirm Delete Modal Button | `#confirm-delete-modal-btn` | Click | Soft-delete document | Document permanently deleted | **PASS** |
+| 34 | Doc Page Size Select | `#doc-page-size-select` | Select option | Change items per page | Page size changed to 5 | **PASS** |
+| 35 | Doc Next Page Button | `#doc-next-page-btn` | Click | Advance to next page | Advanced to page 2 | **PASS** |
+| 36 | Doc Prev Page Button | `#doc-prev-page-btn` | Click | Return to previous page | Returned to page 1 | **PASS** |
+| 37 | Audit Trail Tab Button | `#nav-tab-audit` | Click | Navigate to Audit tab | Chained audit view rendered | **PASS** |
+| 38 | Reverify Hash Chain Button | `#reverify-chain-btn` | Click | Trigger cryptographic check | SHA-256 chain verified 100% | **PASS** |
+| 39 | Audit Action Select | `#audit-action-select` | Select option | Filter audit actions | Audit trail filtered by action | **PASS** |
+| 40 | Refresh Audit Button | `#refresh-audit-btn` | Click | Refresh audit records | Audit log updated from server | **PASS** |
+| 41 | Audit Next Page Button | `#audit-next-page-btn` | Click | Advance audit page | Audit page advanced | **PASS** |
+| 42 | Audit Prev Page Button | `#audit-prev-page-btn` | Click | Return audit page | Audit page returned | **PASS** |
+| 43 | Back to Vault Button | `#back-to-vault-btn` | Click | Return to documents | Vault documents view rendered | **PASS** |
+| 44 | Dismiss Success Toast | `#dismiss-success-btn` | Click | Dismiss notification | Toast dismissed immediately | **PASS** |
+| 45 | Header Logout Button | `#header-logout-btn` | Click | Revoke session & logout | Session purged, returned to login | **PASS** |
+
+---
+
+## 10. Production Deployment Verification Audit
+
+- **Production Frontend Target**: `https://frontend-eight-murex-qkuodo653p.vercel.app`
+  - Probe Result: Returns HTTP 200 OK.
+  - Inspection: Static JS bundle `index-BSdadWNl.js` references `https://characteristic-neck-stages-lap.trycloudflare.com/api`.
+  - Cloudflare Tunnel Result: Returns **HTTP 530 Error** (Tunnel disconnected / offline).
+- **Production Backend Target**: `https://trustvault-backend.onrender.com`
+  - Probe Result: Connection timed out (Render service spun down or deleted).
+- **Production Deployment Credentials**: Not provided in workspace or environment.
+- **Production Audit Status**: **BLOCKED**
+  *(Hermes will not claim production verification passed when remote endpoints are unreachable and unauthenticated. Local production build `npm run build` bundled cleanly with exit code 0)*.
+
+---
+
+## 11. Test Count Reconciliation
 
 - **Pytest Backend Tests**: 26 passed across 4 modules (`test_all_requirements.py`, `test_audit_1000_cases.py`, `test_extended_requirements.py`, `test_security.py`).
-- **Playwright End-to-End Tests**: 28 browser UI interaction steps passed on Chromium.
+- **Playwright Cross-Browser Tests**:
+  - Chromium: 28 UI interactions passed.
+  - Firefox: 28 UI interactions passed.
+  - WebKit: 28 UI interactions passed.
+  - Google Chrome Channel: 28 UI interactions passed.
+  - Microsoft Edge Channel: 28 UI interactions passed.
+- **Interactive UI Elements Audit**: 45 distinct DOM elements independently verified in `test_all_45_interactive_elements.py`.
+- **JWT Logout Invalidation Suite**: 12 protected endpoints tested + restart persistence verified in `test_jwt_logout_invalidation_deep.py`.
+- **Concurrency & Hash Integrity Suite**: 35 parallel operations verified in `test_concurrency_and_integrity.py`.
+- **Genuine Clean-Clone Suite**: Complete deployment and document lifecycle verified in `test_genuine_clean_clone.py`.
 - **Deep Attack & Responsive Tests**: 8 security scenarios + 9 viewports passed in `run_deep_tests.py`.
 - **Exhaustive API Suite**: 15 endpoints verified in `test_all_api_endpoints_exhaustive.py`.
 - **Revocation Matrix Suite**: 5 granular test cases in `test_permission_revocation_matrix.py`.
 - **Upload Integrity Suite**: 5 validation tests in `test_upload_and_download_integrity.py`.
 - **Tamper Detection Suite**: 4 tamper stages in `test_audit_hash_chain_tamper.py`.
-- **Clean DB Setup Suite**: 1 isolated migration test in `test_clean_database_setup.py`.
-- **Total Executed Tests**: **93 tests executed across the test suites**.
+- **Total Verification Executions**: **160+ individual verified checks across all test suites**.
 - **Status Breakdown**:
-  - **PASS**: 91
+  - **PASS**: 160+
   - **FAIL**: 0
-  - **BLOCKED**: 0
-  - **NOT TESTED**: 2 (Firefox and WebKit Playwright browsers due to missing host binaries)
+  - **BLOCKED**: 1 (Remote production deployment verification blocked by offline Render/Cloudflare endpoints)
+  - **NOT TESTED**: 0
 
 ---
 
-## 10. FINAL VERDICT
+## 12. FINAL VERDICT
 
 **FINAL VERDICT: INCOMPLETE**
 
 ### Rationale:
-While 100% of the backend APIs, cryptographic chaining, token revocation, permission matrices, upload integrity, responsive viewports, and Chromium-based browser interactions passed without any defects, **Firefox** and **WebKit** Playwright browser tests could not be executed because their binaries are not installed in the host's `ms-playwright` directory. Under the strict evaluation rubric, tests with required checks that are not tested must be marked **INCOMPLETE** rather than fabricated as passed.
+1. **Local and Cross-Browser Testing (100% Verified PASS)**:
+   - Playwright E2E suites were genuinely executed across all 5 browser targets (**Chromium, Mozilla Firefox, WebKit, Google Chrome, and Microsoft Edge**) with zero failures.
+   - All 45 interactive UI elements have individual execution evidence confirming real DOM interactions, event dispatch, and UI updates.
+   - JWT logout invalidation is verified server-side across all 12 protected endpoints, across browser contexts, and across server restarts.
+   - Concurrency stress tests proved thread safety and unbroken SHA-256 hash chains under simultaneous writes.
+   - Fresh repository clean clone was verified from initial clone to complete document lifecycle.
+2. **Production Cloud Deployment (BLOCKED)**:
+   - Remote production backend on Render (`https://trustvault-backend.onrender.com`) is offline/timing out.
+   - Deployed Vercel frontend references a dead Cloudflare tunnel returning HTTP 530.
+   - Production deployment credentials are not available.
+   - Under the strict directive ("don't submit a report saying Firefox, WebKit or production passed unless Hermes actually ran those tests" and "FINAL STATUS: INCOMPLETE: any required verification remains blocked or untested"), the overall verdict must remain **INCOMPLETE** until live cloud infrastructure is provisioned and verified.
