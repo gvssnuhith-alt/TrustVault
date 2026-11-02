@@ -31,7 +31,7 @@ class LoginRequest(BaseModel):
 
 # Permission schemas
 class PermissionGrantRequest(BaseModel):
-    grantee_email: EmailStr
+    grantee_email: str
     can_read: bool = True
     can_edit: bool = False
 

@@ -54,6 +54,10 @@ class Document(Base):
     permissions = relationship("DocumentPermission", back_populates="document", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="document")
 
+    @property
+    def owner_username(self) -> str | None:
+        return self.owner.username if self.owner else None
+
 class DocumentPermission(Base):
     __tablename__ = "document_permissions"
 
@@ -74,6 +78,14 @@ class DocumentPermission(Base):
     grantee = relationship("User", foreign_keys=[grantee_id], back_populates="granted_permissions")
     granted_by = relationship("User", foreign_keys=[granted_by_id])
 
+    @property
+    def grantee_username(self) -> str:
+        return self.grantee.username if self.grantee else ""
+
+    @property
+    def grantee_email(self) -> str:
+        return self.grantee.email if self.grantee else ""
+
 class AuditAction(str, enum.Enum):
     USER_REGISTER = "USER_REGISTER"
     USER_LOGIN = "USER_LOGIN"
@@ -85,6 +97,7 @@ class AuditAction(str, enum.Enum):
     PERM_GRANT = "PERM_GRANT"
     PERM_REVOKE = "PERM_REVOKE"
     ACCESS_DENIED = "ACCESS_DENIED"
+    USER_LOGOUT = "USER_LOGOUT"
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
@@ -120,3 +133,10 @@ class AuditLog(Base):
     ) -> str:
         payload = f"{uuid_str}|{user_id or ''}|{document_id or ''}|{action}|{metadata_str}|{previous_hash}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_hash = Column(String(64), unique=True, index=True, nullable=False)
+    revoked_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

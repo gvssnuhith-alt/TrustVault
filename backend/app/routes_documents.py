@@ -3,10 +3,10 @@ import hashlib
 import uuid
 import aiofiles
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, func
 
 from app.config import settings
 from app.database import get_db
@@ -18,6 +18,8 @@ from app.audit import record_audit_event
 router = APIRouter(prefix="/documents", tags=["Documents & Access Control"])
 
 # Magic-byte file signatures for strict content inspection
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB maximum upload limit
+
 ALLOWED_MAGIC_SIGNATURES = {
     b"%PDF-": "application/pdf",
     b"PK\x03\x04": "application/vnd.openxmlformats-officedocument", # docx, xlsx, pptx, zip
@@ -69,8 +71,8 @@ def check_document_access(
     if document.owner_id == user.id:
         return True
 
-    # Admin read access
-    if user.role == UserRole.ADMIN and not require_edit:
+    # Admin supervisory access
+    if user.role == UserRole.ADMIN:
         return True
 
     # Check granular user permission row
@@ -99,32 +101,52 @@ async def upload_document(
     os.makedirs(settings.STORAGE_DIR, exist_ok=True)
 
     header = await file.read(512)
+    if not header:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File content rejected: Uploaded file is empty (0 bytes)."
+        )
     mime_type = validate_magic_bytes(header, file.filename or "file")
     await file.seek(0)
 
+    # Sanitize original filename (prevent path traversal like ../../)
+    raw_filename = os.path.basename(file.filename or "unknown").strip()
+    if not raw_filename or raw_filename.startswith("."):
+        raw_filename = f"document_{uuid.uuid4().hex[:8]}.bin"
+
     # Generate secure storage path with UUID
     file_uuid = str(uuid.uuid4())
-    ext = os.path.splitext(file.filename or "")[1]
+    ext = os.path.splitext(raw_filename)[1]
     storage_filename = f"{file_uuid}{ext}.bin"
     storage_path = os.path.join(settings.STORAGE_DIR, storage_filename)
 
     hasher = hashlib.sha256()
     file_size = 0
 
-    async with aiofiles.open(storage_path, "wb") as out_file:
-        while chunk := await file.read(1024 * 1024):  # 1MB buffer
-            hasher.update(chunk)
-            file_size += len(chunk)
-            await out_file.write(chunk)
+    try:
+        async with aiofiles.open(storage_path, "wb") as out_file:
+            while chunk := await file.read(1024 * 1024):  # 1MB buffer
+                file_size += len(chunk)
+                if file_size > MAX_FILE_SIZE:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"File exceeds maximum allowed size of {MAX_FILE_SIZE // (1024 * 1024)}MB."
+                    )
+                hasher.update(chunk)
+                await out_file.write(chunk)
+    except Exception:
+        if os.path.exists(storage_path):
+            os.remove(storage_path)
+        raise
 
     doc = Document(
-        title=title,
-        original_filename=file.filename or "unknown",
+        title=title.strip() if title else raw_filename,
+        original_filename=raw_filename,
         storage_path=storage_path,
         mime_type=mime_type,
         file_size=file_size,
         file_hash_sha256=hasher.hexdigest(),
-        category=category,
+        category=category.strip() if category else "General",
         owner_id=current_user.id
     )
     db.add(doc)
@@ -148,6 +170,10 @@ def list_documents(
     request: Request,
     search: Optional[str] = None,
     category: Optional[str] = None,
+    owner: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    sort_by: Optional[str] = Query("newest"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -185,7 +211,42 @@ def list_documents(
     if category:
         query = query.filter(Document.category.ilike(f"%{category}%"))
 
-    docs = query.order_by(Document.created_at.desc()).all()
+    if owner:
+        query = query.join(User, Document.owner_id == User.id).filter(
+            or_(
+                User.username.ilike(f"%{owner}%"),
+                User.email.ilike(f"%{owner}%")
+            )
+        )
+
+    if date_from:
+        try:
+            d_from = datetime.fromisoformat(date_from)
+            query = query.filter(Document.created_at >= d_from)
+        except Exception:
+            pass
+
+    if date_to:
+        try:
+            d_to = datetime.fromisoformat(date_to)
+            query = query.filter(Document.created_at <= d_to)
+        except Exception:
+            pass
+
+    if sort_by == "oldest":
+        query = query.order_by(Document.created_at.asc())
+    elif sort_by == "title_asc":
+        query = query.order_by(Document.title.asc())
+    elif sort_by == "title_desc":
+        query = query.order_by(Document.title.desc())
+    elif sort_by == "size_asc":
+        query = query.order_by(Document.file_size.asc())
+    elif sort_by == "size_desc":
+        query = query.order_by(Document.file_size.desc())
+    else:
+        query = query.order_by(Document.created_at.desc())
+
+    docs = query.all()
     return docs
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -285,20 +346,32 @@ def grant_permission(
     if doc.owner_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can grant permissions")
 
-    grantee = db.query(User).filter(User.email == grant_in.grantee_email).first()
+    target_clean = grant_in.grantee_email.strip().lower()
+    grantee = db.query(User).filter(
+        or_(
+            func.lower(User.email) == target_clean,
+            func.lower(User.username) == target_clean
+        )
+    ).first()
     if not grantee:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"Target user '{grant_in.grantee_email}' not found. Use a registered email (e.g. viewer@trustvault.io)"
+        )
 
-    perm = db.query(DocumentPermission).filter(
+    existing_perms = db.query(DocumentPermission).filter(
         DocumentPermission.document_id == doc.id,
         DocumentPermission.grantee_id == grantee.id
-    ).first()
+    ).all()
 
-    if perm:
+    if existing_perms:
+        perm = existing_perms[0]
         perm.can_read = grant_in.can_read
         perm.can_edit = grant_in.can_edit
         perm.is_active = True
         perm.revoked_at = None
+        for duplicate in existing_perms[1:]:
+            db.delete(duplicate)
     else:
         perm = DocumentPermission(
             document_id=doc.id,
@@ -361,16 +434,23 @@ def revoke_permission(
     if doc.owner_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can revoke permissions")
 
-    perm = db.query(DocumentPermission).filter(
+    # Find active permissions matching either grantee_id or permission id
+    perms = db.query(DocumentPermission).filter(
         DocumentPermission.document_id == doc.id,
-        DocumentPermission.grantee_id == grantee_id
-    ).first()
+        or_(
+            DocumentPermission.grantee_id == grantee_id,
+            DocumentPermission.id == grantee_id
+        ),
+        DocumentPermission.is_active == True
+    ).all()
 
-    if not perm or not perm.is_active:
+    if not perms:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active permission not found")
 
-    perm.is_active = False
-    perm.revoked_at = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    for perm in perms:
+        perm.is_active = False
+        perm.revoked_at = now
     db.commit()
 
     record_audit_event(
@@ -384,3 +464,120 @@ def revoke_permission(
     )
 
     return {"status": "success", "message": "Access revoked immediately."}
+
+@router.patch("/{document_id}", response_model=DocumentResponse)
+def update_document(
+    document_id: str,
+    update_data: DocumentUpdateRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update document metadata (title, category).
+    Authorized: Document Owner, Admin, or Viewer granted with can_edit=True.
+    Read-only viewers get 403 Forbidden.
+    Unauthorized users get 404 Not Found (Zero existence oracle).
+    """
+    doc = db.query(Document).filter(Document.id == document_id, Document.is_deleted == False).first()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Check if user has edit access
+    if not check_document_access(db, doc, current_user, require_edit=True):
+        # If user has read access, return 403 Forbidden
+        if check_document_access(db, doc, current_user, require_edit=False):
+            record_audit_event(
+                db=db,
+                action=AuditAction.ACCESS_DENIED,
+                user_id=current_user.id,
+                document_id=doc.id,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                metadata={"reason": "Read-only viewer attempted document edit"}
+            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Edit permission required")
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    changes = {}
+    if update_data.title is not None and update_data.title.strip():
+        changes["old_title"] = doc.title
+        doc.title = update_data.title.strip()
+        changes["new_title"] = doc.title
+
+    if update_data.category is not None and update_data.category.strip():
+        changes["old_category"] = doc.category
+        doc.category = update_data.category.strip()
+        changes["new_category"] = doc.category
+
+    db.commit()
+    db.refresh(doc)
+
+    record_audit_event(
+        db=db,
+        action=AuditAction.DOC_UPDATE,
+        user_id=current_user.id,
+        document_id=doc.id,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        metadata=changes
+    )
+
+    return doc
+
+@router.delete("/{document_id}")
+def delete_document(
+    document_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Delete document.
+    Authorized: Document Owner or Admin ONLY.
+    Viewers (even with can_edit=True) get 403 Forbidden.
+    Unauthorized users get 404 Not Found.
+    Audit log remains cryptographically intact.
+    """
+    doc = db.query(Document).filter(Document.id == document_id, Document.is_deleted == False).first()
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    # Strictly check owner or admin
+    if doc.owner_id != current_user.id and current_user.role != UserRole.ADMIN:
+        if check_document_access(db, doc, current_user, require_edit=False):
+            record_audit_event(
+                db=db,
+                action=AuditAction.ACCESS_DENIED,
+                user_id=current_user.id,
+                document_id=doc.id,
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+                metadata={"reason": "Non-owner attempted document deletion"}
+            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only document owner or admin can delete document")
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    doc.is_deleted = True
+    db.commit()
+
+    # Safely clean up storage file
+    if os.path.exists(doc.storage_path):
+        try:
+            os.remove(doc.storage_path)
+        except OSError:
+            pass
+
+    record_audit_event(
+        db=db,
+        action=AuditAction.DOC_DELETE,
+        user_id=current_user.id,
+        document_id=doc.id,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        metadata={"title": doc.title, "filename": doc.original_filename}
+    )
+
+    return {"status": "success", "message": "Document deleted successfully."}

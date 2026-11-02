@@ -66,3 +66,39 @@ This journal logs AI interactions, specifically documenting where AI suggestions
 * **Correction Implemented:**
   Implemented dedicated adversarial negative test cases in `test_security.py`, including `test_judge_removes_auth_check_fails` which programmatically mocks/strips authorization to verify that the test suite detects and blocks insecure code regressions.
 
+---
+
+### Entry 6: 2026-11-01 - Hardcoded Dead Cloudflare Tunnel in Frontend Bundle
+* **Task Requested:** Diagnose real browser login failures on the React frontend.
+* **AI Output:**
+  Previous development iterations baked a hardcoded Cloudflare Tunnel URL (`https://characteristic-neck-stages-lap.trycloudflare.com/api`) directly into `frontend/src/App.tsx`.
+* **Defect / Security Flaw Identified:**
+  When the temporary Cloudflare tunnel expired, all frontend browser login and document fetch requests failed with silent network errors (`ERR_CONNECTION_REFUSED` / DNS lookup failure). Test suites passed because they were running purely against local in-memory FastAPI TestClient, masking the complete frontend outage.
+* **Correction Implemented:**
+  1. Removed the hardcoded tunnel URL.
+  2. Configured Vite development server proxy in `frontend/vite.config.ts` mapping `/api` to `http://127.0.0.1:8000`.
+  3. Set `API_BASE = import.meta.env.VITE_API_URL || '/api'`, making the frontend work seamlessly across both local development and production environments.
+
+---
+
+### Entry 7: 2026-11-01 - SPA Logout Active Tab State Retention
+* **Task Requested:** Implement user role switching and clean logout in the frontend.
+* **AI Output:**
+  The `logout()` function cleared `tv_token` and `currentUser`, but left `activeTab` set to `'audit'` if an Admin previously viewed the audit trail.
+* **Defect / Security Flaw Identified:**
+  When an Owner logged in following an Admin session, the UI immediately rendered the Audit Trail view rather than the Owner's Document Vault, confusing the user and requiring an extra manual tab click.
+* **Correction Implemented:**
+  Updated `logout()` to reset all UI states: `setActiveTab('vault')`, `setSuccessMsg('')`, and `setErrorMsg('')`.
+
+---
+
+### Entry 8: 2026-11-01 - Pytest SQLite Table Collision Across Modules
+* **Task Requested:** Run comprehensive backend test suite across all requirement test modules.
+* **AI Output:**
+  Running `pytest tests/` failed on `test_extended_requirements.py` because table schema creation collided with tables created by `test_all_requirements.py`.
+* **Defect Identified:**
+  Default SQLite test fixtures shared a common database file connection without isolating the session lifecycle per test module.
+* **Correction Implemented:**
+  Configured standalone in-memory SQLite fixtures (`sqlite:///:memory:` with `StaticPool`) dedicated to the extended test module, ensuring complete isolation and allowing all 26 pytest cases to pass cleanly.
+
+

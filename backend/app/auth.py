@@ -1,3 +1,4 @@
+import hashlib
 import bcrypt
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -48,6 +49,16 @@ def get_current_user(
             raise credentials_exception
     except JWTError:
         raise credentials_exception
+
+    # Live token revocation check (Zero-Trust blacklist)
+    from app.models import RevokedToken
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    if db.query(RevokedToken).filter(RevokedToken.token_hash == token_hash).first():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked upon logout",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
     if user is None:

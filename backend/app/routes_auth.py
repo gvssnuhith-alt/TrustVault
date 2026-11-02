@@ -87,3 +87,34 @@ def login(login_data: LoginRequest, request: Request, db: Session = Depends(get_
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    import hashlib
+    from app.models import RevokedToken
+
+    # Extract raw bearer token from Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        raw_token = auth_header.split(" ", 1)[1].strip()
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        
+        # Store in revocation table if not already present
+        if not db.query(RevokedToken).filter(RevokedToken.token_hash == token_hash).first():
+            revoked_entry = RevokedToken(token_hash=token_hash)
+            db.add(revoked_entry)
+            db.commit()
+
+    record_audit_event(
+        db=db,
+        action=AuditAction.USER_LOGOUT,
+        user_id=current_user.id,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+        metadata={"email": current_user.email, "role": current_user.role.value}
+    )
+    return {"status": "success", "message": "Successfully logged out and session revoked."}

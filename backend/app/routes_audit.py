@@ -17,6 +17,7 @@ def get_audit_logs(
     document_id: Optional[str] = None,
     user_id: Optional[str] = None,
     limit: int = Query(100, le=500),
+    offset: int = Query(0, ge=0),
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db)
 ):
@@ -31,7 +32,7 @@ def get_audit_logs(
     if user_id:
         query = query.filter(AuditLog.user_id == user_id)
 
-    logs = query.order_by(desc(AuditLog.timestamp)).limit(limit).all()
+    logs = query.order_by(desc(AuditLog.timestamp)).offset(offset).limit(limit).all()
     return logs
 
 @router.get("/verify")
@@ -45,3 +46,36 @@ def verify_integrity(
     """
     result = verify_audit_chain(db)
     return result
+
+@router.get("/metrics")
+def get_admin_metrics(
+    current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Consolidated administrative system metrics and permission overview.
+    """
+    from app.models import Document, DocumentPermission
+    from sqlalchemy import func
+
+    total_docs = db.query(Document).filter(Document.is_deleted == False).count()
+    total_users = db.query(User).count()
+    active_perms = db.query(DocumentPermission).filter(DocumentPermission.is_active == True).count()
+    total_logs = db.query(AuditLog).count()
+    
+    action_counts = dict(
+        db.query(AuditLog.action, func.count(AuditLog.id))
+        .group_by(AuditLog.action)
+        .all()
+    )
+    stats = {k.value if hasattr(k, "value") else str(k): v for k, v in action_counts.items()}
+    chain_check = verify_audit_chain(db)
+
+    return {
+        "total_documents": total_docs,
+        "total_users": total_users,
+        "active_permissions": active_perms,
+        "total_audit_events": total_logs,
+        "events_by_action": stats,
+        "chain_integrity": chain_check
+    }
