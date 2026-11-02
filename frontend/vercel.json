@@ -4,8 +4,20 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api",
+      "destination": "/api/index.py"
+    },
+    {
       "source": "/api/(.*)",
-      "destination": "https://trustvault-backend.onrender.com/api/$1"
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/healthz",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/readyz",
+      "destination": "/api/index.py"
     },
     {
       "source": "/(.*)",

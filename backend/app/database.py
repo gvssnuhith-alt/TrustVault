@@ -12,17 +12,26 @@ elif db_url.startswith("postgresql://") and not db_url.startswith("postgresql+")
 if db_url.startswith("sqlite"):
     engine = create_engine(db_url, connect_args={"check_same_thread": False})
 else:
-    # Production PostgreSQL connection pooling tuned for Render Free and Supabase Free
+    import os
+    # Production PostgreSQL connection pooling tuned for Supabase Free and Serverless
     connect_args = {"sslmode": "require"} if "sslmode" not in db_url else {}
-    engine = create_engine(
-        db_url,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-        pool_timeout=30,
-        pool_recycle=300,
-        connect_args=connect_args
-    )
+    if os.getenv("VERCEL") or os.getenv("SERVERLESS") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        from sqlalchemy.pool import NullPool
+        engine = create_engine(
+            db_url,
+            poolclass=NullPool,
+            connect_args=connect_args
+        )
+    else:
+        engine = create_engine(
+            db_url,
+            pool_pre_ping=True,
+            pool_size=10,
+            max_overflow=20,
+            pool_timeout=30,
+            pool_recycle=300,
+            connect_args=connect_args
+        )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

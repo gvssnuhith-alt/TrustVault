@@ -10,10 +10,16 @@ from app.routes_documents import router as docs_router
 from app.routes_audit import router as audit_router
 
 # Create database tables automatically
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Database schema initialization warning: {e}")
 
 # Ensure storage directory exists
-os.makedirs(settings.STORAGE_DIR, exist_ok=True)
+try:
+    os.makedirs(settings.STORAGE_DIR, exist_ok=True)
+except Exception:
+    pass
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

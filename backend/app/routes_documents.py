@@ -99,7 +99,10 @@ async def upload_document(
     current_user: User = Depends(require_owner_or_admin),
     db: Session = Depends(get_db)
 ):
-    os.makedirs(settings.STORAGE_DIR, exist_ok=True)
+    try:
+        os.makedirs(settings.STORAGE_DIR, exist_ok=True)
+    except OSError:
+        pass
 
     header = await file.read(512)
     if not header:

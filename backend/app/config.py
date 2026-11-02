@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     
     # Storage path & Provider
     STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local")  # "local" or "s3"
-    STORAGE_DIR: str = os.getenv("STORAGE_DIR", "./storage")
+    STORAGE_DIR: str = os.getenv(
+        "STORAGE_DIR",
+        "/tmp/storage" if (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")) else "./storage"
+    )
     S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "")
     S3_ENDPOINT_URL: str = os.getenv("S3_ENDPOINT_URL", "")
     S3_ACCESS_KEY_ID: str = os.getenv("S3_ACCESS_KEY_ID", "")
