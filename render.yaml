@@ -21,7 +21,21 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "60"
       - key: STORAGE_DIR
-        value: ./storage
+        value: /var/data/trustvault_storage
+      - key: STORAGE_BACKEND
+        value: local
+      # To use zero-cost persistent storage on Free tier without Render Starter disk:
+      # set STORAGE_BACKEND=s3 and populate Cloudflare R2 / S3 credentials below.
+      # - key: S3_BUCKET_NAME
+      #   value: your-r2-bucket
+      # - key: S3_ENDPOINT_URL
+      #   value: https://<accountid>.r2.cloudflarestorage.com
+      # - key: S3_ACCESS_KEY_ID
+      #   sync: false
+      # - key: S3_SECRET_ACCESS_KEY
+      #   sync: false
+    # NOTE: Render Disks require 'plan: starter' ($7/mo). Free tier rejects disk attachment.
+    # To run on Render Starter plan, change 'plan: free' above to 'plan: starter'.
     disk:
       name: trustvault-storage
       mountPath: /var/data/trustvault_storage

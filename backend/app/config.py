@@ -18,7 +18,18 @@ class Settings(BaseSettings):
     # or Postgres if DATABASE_URL is set in environment (e.g. Render / Supabase)
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./trustvault.db")
     
-    # Storage path
+    # Storage path & Provider
+    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "local")  # "local" or "s3"
     STORAGE_DIR: str = os.getenv("STORAGE_DIR", "./storage")
+    S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "")
+    S3_ENDPOINT_URL: str = os.getenv("S3_ENDPOINT_URL", "")
+    S3_ACCESS_KEY_ID: str = os.getenv("S3_ACCESS_KEY_ID", "")
+    S3_SECRET_ACCESS_KEY: str = os.getenv("S3_SECRET_ACCESS_KEY", "")
+    S3_REGION_NAME: str = os.getenv("S3_REGION_NAME", "auto")
+
+    # Production lifecycle and initial admin
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    INITIAL_ADMIN_PASSWORD: str = os.getenv("INITIAL_ADMIN_PASSWORD", "")
+    ALLOW_DEMO_SEED: bool = os.getenv("ALLOW_DEMO_SEED", "true").lower() in ("true", "1", "yes")
 
 settings = Settings()

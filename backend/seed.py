@@ -3,18 +3,41 @@ from app.database import SessionLocal, engine, Base
 from app.models import User, UserRole, Document, AuditAction
 from app.auth import get_password_hash
 from app.audit import record_audit_event
+from app.config import settings
 import os
 
 def seed_database():
     Base.metadata.create_all(bind=engine)
     db: Session = SessionLocal()
     try:
-        # Check if users already exist
-        if db.query(User).count() > 0:
-            print("Database already seeded.")
+        # 1. Idempotency Check: Never recreate or overwrite existing users
+        existing_user_count = db.query(User).count()
+        if existing_user_count > 0:
+            print(f"Database already contains {existing_user_count} user(s). Skipping seed.")
             return
 
-        print("Seeding demo accounts required by Snovasys challenge...")
+        # 2. Production Security Gate: Remove hardcoded default passwords in production
+        is_production = settings.ENVIRONMENT.lower() == "production"
+        if is_production and not settings.ALLOW_DEMO_SEED:
+            print("Production environment detected. Refusing to seed hardcoded demo credentials.")
+            if settings.INITIAL_ADMIN_PASSWORD:
+                print("Provisioning secure initial administrator from INITIAL_ADMIN_PASSWORD...")
+                admin = User(
+                    email="admin@trustvault.io",
+                    username="admin",
+                    hashed_password=get_password_hash(settings.INITIAL_ADMIN_PASSWORD),
+                    role=UserRole.ADMIN
+                )
+                db.add(admin)
+                db.commit()
+                db.refresh(admin)
+                record_audit_event(db, AuditAction.USER_REGISTER, user_id=admin.id, metadata={"role": "admin", "note": "Secure initial admin setup"})
+                print("Secure initial administrator provisioned.")
+            else:
+                print("Notice: INITIAL_ADMIN_PASSWORD not set. Waiting for initial administrator registration.")
+            return
+
+        print("Seeding demo accounts for development / testing environment...")
         
         # 1. Administrator
         admin = User(

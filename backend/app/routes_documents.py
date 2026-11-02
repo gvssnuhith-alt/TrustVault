@@ -4,7 +4,7 @@ import uuid
 import aiofiles
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 
@@ -14,6 +14,7 @@ from app.models import User, UserRole, Document, DocumentPermission, AuditAction
 from app.schemas import DocumentResponse, DocumentUpdateRequest, PermissionGrantRequest, PermissionResponse
 from app.auth import get_current_user, require_owner_or_admin
 from app.audit import record_audit_event
+from app.storage import storage_manager
 
 router = APIRouter(prefix="/documents", tags=["Documents & Access Control"])
 
@@ -114,30 +115,16 @@ async def upload_document(
     if not raw_filename or raw_filename.startswith("."):
         raw_filename = f"document_{uuid.uuid4().hex[:8]}.bin"
 
-    # Generate secure storage path with UUID
+    # Generate secure storage identifier with UUID
     file_uuid = str(uuid.uuid4())
     ext = os.path.splitext(raw_filename)[1]
-    storage_filename = f"{file_uuid}{ext}.bin"
-    storage_path = os.path.join(settings.STORAGE_DIR, storage_filename)
-
-    hasher = hashlib.sha256()
-    file_size = 0
-
-    try:
-        async with aiofiles.open(storage_path, "wb") as out_file:
-            while chunk := await file.read(1024 * 1024):  # 1MB buffer
-                file_size += len(chunk)
-                if file_size > MAX_FILE_SIZE:
-                    raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail=f"File exceeds maximum allowed size of {MAX_FILE_SIZE // (1024 * 1024)}MB."
-                    )
-                hasher.update(chunk)
-                await out_file.write(chunk)
-    except Exception:
-        if os.path.exists(storage_path):
-            os.remove(storage_path)
-        raise
+    
+    storage_path, file_size, file_hash = await storage_manager.save_file(
+        file=file,
+        file_uuid=file_uuid,
+        ext=ext,
+        max_size=MAX_FILE_SIZE
+    )
 
     doc = Document(
         title=title.strip() if title else raw_filename,
@@ -145,7 +132,7 @@ async def upload_document(
         storage_path=storage_path,
         mime_type=mime_type,
         file_size=file_size,
-        file_hash_sha256=hasher.hexdigest(),
+        file_hash_sha256=file_hash,
         category=category.strip() if category else "General",
         owner_id=current_user.id
     )
@@ -311,7 +298,7 @@ def download_document(
         )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    if not os.path.exists(doc.storage_path):
+    if not storage_manager.exists(doc.storage_path):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Storage asset missing")
 
     record_audit_event(
@@ -323,6 +310,15 @@ def download_document(
         user_agent=request.headers.get("user-agent"),
         metadata={"filename": doc.original_filename, "size": doc.file_size}
     )
+
+    if storage_manager.backend == "s3":
+        return StreamingResponse(
+            storage_manager.get_stream(doc.storage_path),
+            media_type=doc.mime_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{doc.original_filename}"'
+            }
+        )
 
     return FileResponse(
         path=doc.storage_path,
@@ -575,11 +571,7 @@ def delete_document(
     db.commit()
 
     # Safely clean up storage file
-    if os.path.exists(doc.storage_path):
-        try:
-            os.remove(doc.storage_path)
-        except OSError:
-            pass
+    storage_manager.delete(doc.storage_path)
 
     record_audit_event(
         db=db,

@@ -4,8 +4,8 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/api/:match*",
-      "destination": "https://trustvault-backend.onrender.com/api/:match*"
+      "source": "/api/(.*)",
+      "destination": "https://trustvault-backend.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
