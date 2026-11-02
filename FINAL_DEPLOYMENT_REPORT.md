@@ -11,9 +11,9 @@
 | Component | Target Provider | Assigned Plan | Canonical URL / Endpoint | Real Cloud Status |
 |---|---|---|---|---|
 | **Public Frontend** | Vercel | Hobby (Free) | `https://trust-vault-smoky.vercel.app` | **PASS (Live HTTP 200)** |
-| **Backend API** | Render | Free Web Service | `https://trustvault-backend.onrender.com` | **BLOCKED (Awaiting DB Secrets)** |
-| **Relational Database** | Supabase | Free Tier | Pooled PostgreSQL (Port 6543 / 5432) | **BLOCKED (Awaiting Project Provisioning)** |
-| **Object / File Storage**| Supabase Storage | Free Tier (1GB) | S3-Compatible: `<ref>.supabase.co/storage/v1/s3` | **BLOCKED (Awaiting Bucket Provisioning)** |
+| **Backend API** | Render | Free Web Service | `https://trustvault-backend.onrender.com` | **BLOCKED (Service Suspended in Dashboard; Awaiting Manual Deploy / Resume)** |
+| **Relational Database** | Supabase | Free Tier | Pooled PostgreSQL (Port 6543 / 5432) | **CONFIGURED (Awaiting Backend Wake-Up)** |
+| **Object / File Storage**| Supabase Storage | Free Tier (1GB) | S3-Compatible: `<ref>.supabase.co/storage/v1/s3` | **CONFIGURED (Awaiting Backend Wake-Up)** |
 
 ---
 
@@ -38,35 +38,26 @@
 - **Instance Type:** `starter` (Free tier, 512MB RAM, shared CPU)
 - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - **Cold-Start Handling:** Configured lightweight startup hook; health check probe at `/api/healthz` responding in <50ms without initiating heavy database transactions.
-- **Current Blocker:** Render free managed database expired. Web service requires external `DATABASE_URL` environment secret pointed to Supabase Free.
+- **Current Operational Status:** Supabase PostgreSQL `DATABASE_URL` and S3 storage keys have been configured in Render environment variables. However, because the service was previously suspended during the database expiration, Render's reverse proxy accepts TLS handshakes but does not wake or route traffic to the container until a manual deployment is triggered.
 
 ---
 
 ## 4. Supabase Free Database & Storage Architecture
 
-- **PostgreSQL Connection String:**
-  ```text
-  postgresql://postgres.[project-ref]:[db-password]@aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require
-  ```
+- **PostgreSQL Connection String:** Configured with transaction pooling (`aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require`).
 - **Connection Pooling:** SQLAlchemy `pool_size=5`, `max_overflow=10`, `pool_recycle=300`, `pool_pre_ping=True`.
 - **Supabase Storage Configuration:**
   - Bucket: `trustvault-docs` (Private access only).
   - Storage Backend: S3-Compatible API endpoint (`https://<project-ref>.supabase.co/storage/v1/s3`).
-  - Access Credentials: `S3_ACCESS_KEY_ID=<project-ref>`, `S3_SECRET_ACCESS_KEY=<service-role-key-or-s3-secret>`.
+  - Access Credentials: `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` safely configured in Render secrets.
 
 ---
 
 ## 5. Deployment Blocker & Required User Action
 
-To transition Render, Supabase PostgreSQL, and Supabase Storage from **BLOCKED** to **PASS**:
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Create a private bucket named `trustvault-docs` under Storage.
-3. In the Render Dashboard under Environment Variables for `trustvault-backend`, provide:
-   - `DATABASE_URL`: Your Supabase pooled PostgreSQL URL.
-   - `STORAGE_BACKEND`: `s3`
-   - `S3_ENDPOINT_URL`: `https://<your-project-ref>.supabase.co/storage/v1/s3`
-   - `S3_BUCKET_NAME`: `trustvault-docs`
-   - `S3_ACCESS_KEY_ID`: `<your-supabase-project-ref>`
-   - `S3_SECRET_ACCESS_KEY`: `<your-supabase-service-role-key>`
-   - `ENVIRONMENT`: `production`
-   - `SECRET_KEY`: High-entropy 64-character hex string.
+To complete the final live end-to-end cloud smoke check:
+1. Open the [Render Dashboard](https://dashboard.render.com).
+2. Open the `trustvault-backend` service.
+3. If the status is **Suspended**, click **Resume Service**.
+4. Click **Manual Deploy** -> **Deploy latest commit** (`ccf61af`).
+5. Render will build `requirements.txt`, run `Base.metadata.create_all(bind=engine)`, start Uvicorn, and activate `/healthz` and `/readyz`.
