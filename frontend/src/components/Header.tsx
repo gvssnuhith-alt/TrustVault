@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">v1.0-PROD</span>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <div id="system-status-indicator" className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-[9px] font-mono">
+              <div id="system-status-indicator" className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-[9px] font-mono">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>

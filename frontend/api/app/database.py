@@ -14,7 +14,7 @@ if db_url.startswith("sqlite"):
 else:
     import os
     # Production PostgreSQL connection pooling tuned for Supabase Free and Serverless
-    connect_args = {"sslmode": "require"} if "sslmode" not in db_url else {}
+    connect_args = {"sslmode": "require", "connect_timeout": 5} if "sslmode" not in db_url else {"connect_timeout": 5}
     if os.getenv("VERCEL") or os.getenv("SERVERLESS") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
         from sqlalchemy.pool import NullPool
         engine = create_engine(

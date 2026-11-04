@@ -9,11 +9,17 @@ from app.routes_auth import router as auth_router
 from app.routes_documents import router as docs_router
 from app.routes_audit import router as audit_router
 
-# Create database tables automatically
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception as e:
-    print(f"Database schema initialization warning: {e}")
+# Create database tables automatically in local dev only; bypass in serverless to prevent cold-start DDL contention
+if not os.getenv("VERCEL") and not os.getenv("SERVERLESS") and not os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Database schema initialization warning: {e}")
+elif os.getenv("INIT_DB", "false").lower() in ("true", "1"):
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Database schema initialization warning: {e}")
 
 # Ensure storage directory exists
 try:

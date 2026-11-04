@@ -5,7 +5,7 @@ import aiofiles
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Query
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_, and_, func
 
 from app.config import settings
@@ -365,6 +365,10 @@ def list_documents(
     else:
         query = query.order_by(Document.created_at.desc())
 
+    query = query.options(
+        joinedload(Document.owner),
+        selectinload(Document.permissions).joinedload(DocumentPermission.grantee)
+    )
     docs = query.all()
     return docs
 
