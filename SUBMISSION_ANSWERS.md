@@ -78,7 +78,7 @@ TrustVault can be installed and run locally from a clean clone using the steps b
 
 ### 1. Clone the Repository:
 ```bash
-git clone https://github.com/gvssnuhith-person/TrustVault.git
+git clone https://github.com/gvssnuhith-alt/TrustVault.git
 cd TrustVault
 ```
 
