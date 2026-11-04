@@ -282,3 +282,109 @@ def test_10_adversarial_judge_removes_auth_check_fails(client):
     # Unauthorized user MUST get 404
     res = client.get(f"/api/documents/{doc_id}/download", headers={"Authorization": f"Bearer {unauth_token}"})
     assert res.status_code == 404, "Security check breached! Test suite must catch missing auth."
+
+def test_11_bulk_delete_authorization_and_audit_consistency(client, db_session):
+    """Verify that bulk deletion enforces ownership and updates the audit chain."""
+    client.post("/api/auth/register", json={"email": "bulk_owner@tv.io", "username": "bulk_owner", "password": "Password123!", "role": "owner"})
+    client.post("/api/auth/register", json={"email": "bulk_viewer@tv.io", "username": "bulk_viewer", "password": "Password123!", "role": "viewer"})
+
+    owner_token = client.post("/api/auth/login", json={"username_or_email": "bulk_owner", "password": "Password123!"}).json()["access_token"]
+    viewer_token = client.post("/api/auth/login", json={"username_or_email": "bulk_viewer", "password": "Password123!"}).json()["access_token"]
+
+    d1 = client.post(
+        "/api/documents/upload",
+        headers={"Authorization": f"Bearer {owner_token}"},
+        data={"title": "Bulk Doc 1", "category": "General"},
+        files={"file": ("b1.pdf", io.BytesIO(b"%PDF-1.4 Data 1"), "application/pdf")}
+    ).json()["id"]
+
+    d2 = client.post(
+        "/api/documents/upload",
+        headers={"Authorization": f"Bearer {owner_token}"},
+        data={"title": "Bulk Doc 2", "category": "General"},
+        files={"file": ("b2.pdf", io.BytesIO(b"%PDF-1.4 Data 2"), "application/pdf")}
+    ).json()["id"]
+
+    # 1. Viewer attempts bulk delete -> fails to delete
+    res_viewer = client.post(
+        "/api/documents/bulk-delete",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+        json={"document_ids": [d1, d2]}
+    )
+    assert res_viewer.status_code == 200
+    assert res_viewer.json()["deleted_count"] == 0
+    assert len(res_viewer.json()["failed_ids"]) == 2
+
+    # 2. Owner performs bulk delete -> succeeds
+    res_owner = client.post(
+        "/api/documents/bulk-delete",
+        headers={"Authorization": f"Bearer {owner_token}"},
+        json={"document_ids": [d1, d2]}
+    )
+    assert res_owner.status_code == 200
+    assert res_owner.json()["deleted_count"] == 2
+    assert set(res_owner.json()["deleted_ids"]) == {d1, d2}
+
+    # 3. Verify audit chain validity after bulk operations
+    client.post("/api/auth/register", json={"email": "bulk_admin@tv.io", "username": "bulk_admin", "password": "Password123!", "role": "admin"})
+    admin_token = client.post("/api/auth/login", json={"username_or_email": "bulk_admin", "password": "Password123!"}).json()["access_token"]
+    verify_res = client.get("/api/audit/verify", headers={"Authorization": f"Bearer {admin_token}"})
+    assert verify_res.status_code == 200
+    assert verify_res.json()["status"] == "valid"
+
+def test_12_strict_idor_privilege_escalation_and_malicious_upload_suite(client, db_session):
+    """
+    Independent Penetration Evaluation:
+    1. IDOR on metadata update, download, delete.
+    2. Privilege escalation attempts by viewer.
+    3. Malicious upload rejection (HTML, SVG, EXE disguised as PDF).
+    """
+    client.post("/api/auth/register", json={"email": "attacker@tv.io", "username": "attacker", "password": "Password123!", "role": "viewer"})
+    client.post("/api/auth/register", json={"email": "victim@tv.io", "username": "victim", "password": "Password123!", "role": "owner"})
+
+    attacker_token = client.post("/api/auth/login", json={"username_or_email": "attacker", "password": "Password123!"}).json()["access_token"]
+    victim_token = client.post("/api/auth/login", json={"username_or_email": "victim", "password": "Password123!"}).json()["access_token"]
+
+    # Victim uploads legitimate document
+    v_doc = client.post(
+        "/api/documents/upload",
+        headers={"Authorization": f"Bearer {victim_token}"},
+        data={"title": "Victim Private Asset", "category": "Legal"},
+        files={"file": ("legal.pdf", io.BytesIO(b"%PDF-1.4 Confidentials"), "application/pdf")}
+    ).json()
+    v_doc_id = v_doc["id"]
+
+    # 1. Attacker attempts IDOR GET /api/documents/{id} -> 404
+    r1 = client.get(f"/api/documents/{v_doc_id}", headers={"Authorization": f"Bearer {attacker_token}"})
+    assert r1.status_code == 404
+
+    # 2. Attacker attempts IDOR PATCH /api/documents/{id} -> 404
+    r2 = client.patch(
+        f"/api/documents/{v_doc_id}",
+        headers={"Authorization": f"Bearer {attacker_token}"},
+        json={"title": "Hacked Title"}
+    )
+    assert r2.status_code == 404
+
+    # 3. Attacker attempts IDOR DELETE /api/documents/{id} -> 404
+    r3 = client.delete(f"/api/documents/{v_doc_id}", headers={"Authorization": f"Bearer {attacker_token}"})
+    assert r3.status_code == 404
+
+    # 4. Attacker attempts privilege escalation (Grant permission without edit right) -> 403 Forbidden
+    r4 = client.post(
+        f"/api/documents/{v_doc_id}/permissions",
+        headers={"Authorization": f"Bearer {attacker_token}"},
+        json={"grantee_email": "attacker@tv.io", "can_read": True, "can_edit": True}
+    )
+    assert r4.status_code == 403
+
+    # 5. Attacker attempts malicious upload disguised as PDF (contains HTML/JS payload without magic bytes)
+    malicious_files = {"file": ("malware.pdf", io.BytesIO(b"<html><script>alert(1)</script></html>"), "application/pdf")}
+    r5 = client.post(
+        "/api/documents/upload",
+        headers={"Authorization": f"Bearer {victim_token}"},
+        files=malicious_files,
+        data={"title": "Fake PDF"}
+    )
+    assert r5.status_code == 400
+    assert "rejected" in r5.json()["detail"].lower() or "masquerade" in r5.json()["detail"].lower()

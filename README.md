@@ -9,9 +9,21 @@
 ---
 
 ## 🌐 Live Deployments & Repository
-* **GitHub Repository:** [https://github.com/gvssnuhith-person/TrustVault](https://github.com/gvssnuhith-person/TrustVault)
-* **Frontend Web Dashboard (Vercel):** [https://frontend-eight-murex-qkuodo653p.vercel.app](https://frontend-eight-murex-qkuodo653p.vercel.app)
-* **Backend API & Swagger Docs:** Deployed via Render Blueprint (`render.yaml`)
+* **GitHub Repository (Private until Nov 7, 2026 6:00 PM IST):** [https://github.com/gvssnuhith-person/TrustVault](https://github.com/gvssnuhith-person/TrustVault)
+* **Production Live Application (Vercel):** [https://trust-vault-smoky.vercel.app](https://trust-vault-smoky.vercel.app)
+* **Production API Health Endpoint:** [https://trust-vault-smoky.vercel.app/healthz](https://trust-vault-smoky.vercel.app/healthz)
+* **Production Database Readiness:** [https://trust-vault-smoky.vercel.app/api/readyz](https://trust-vault-smoky.vercel.app/api/readyz)
+
+---
+
+## 🏗️ Architecture Overview
+
+TrustVault operates as a unified, zero-cost production cloud application:
+* **Frontend:** React 18 with TypeScript, Tailwind CSS, Lucide icons, and Vite. Deployed on Vercel Edge CDN.
+* **Backend:** FastAPI (Python 3.12) deployed on Vercel Serverless Functions (`/api/index.py`) using ASGI.
+* **Database:** Supabase Managed PostgreSQL via transaction pooler with SQLAlchemy `NullPool` (preventing serverless connection leaks).
+* **Storage:** Supabase S3-Compatible Storage via presigned direct PUT/GET workflows with a strict 10MB ceiling.
+* **Audit Engine:** Continuous SHA-256 cryptographic hash-chained audit ledger with PostgreSQL advisory lock serialization (`pg_advisory_xact_lock(77123991)`).
 
 ---
 
@@ -59,4 +71,87 @@ python -m pytest tests/ -v
 | **Admin** | `admin@trustvault.io` | `AdminPass2026!` | Global supervisory view, full chained audit log verification |
 | **Owner** | `owner@trustvault.io` | `OwnerPass2026!` | Document upload, grant permissions, revoke permissions |
 | **Viewer** | `viewer@trustvault.io` | `ViewerPass2026!` | Read & stream permitted documents only |
+|
+
+---
+
+## 🚀 Clean-Clone Setup & Run Instructions
+
+### Prerequisites
+* Python 3.11+
+* Node.js 18+ and npm
+* Git
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/gvssnuhith-person/TrustVault.git
+cd TrustVault
+```
+
+### 2. Backend Setup
+```bash
+cd backend
+python -m venv venv
+
+# Linux / macOS
+source venv/bin/activate
+# Windows
+.\venv\Scripts\activate
+
+pip install -r requirements.txt
+
+# Run all 32 unit and security tests
+python -m pytest tests/ -v
+
+# Run the local backend server (optional)
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### 3. Frontend Setup
+```bash
+cd ../frontend
+npm install
+
+# Run TypeScript checks and production build
+npm run build
+
+# Start local Vite development server
+npm run dev
+```
+Open your browser at `http://localhost:5173`. The development server automatically proxies `/api` requests to `http://127.0.0.1:8000`.
+
+---
+
+## 🧪 Comprehensive Verification Commands
+
+```bash
+# 1. Run all backend tests
+cd backend && venv/Scripts/python.exe -m pytest tests -v
+
+# 2. Run frontend production build
+cd ../frontend && npm run build
+
+# 3. Run full production smoke test suite against live URL
+cd .. && python scripts/run_production_audit_suite.py
+```
+
+---
+
+## 📹 5-Minute Demo Video Walkthrough Outline
+
+The demo video showcases the end-to-end user journeys and security validations:
+1. **0:00 - 0:45**: Architectural Introduction (Zero-Trust Model, Vercel Serverless, Supabase PostgreSQL, S3 Storage).
+2. **0:45 - 1:45**: Document Owner Experience (Registration, 10MB file upload, magic-byte check, category tagging, search & filter).
+3. **1:45 - 2:45**: Granular Sharing & Instant Revocation (Granting Read/Edit to Viewer, verifying Viewer access, instant revocation, verifying immediate HTTP 404).
+4. **2:45 - 3:45**: Administrative Oversight & SHA-256 Audit Trail (Genesis block, cryptographic hash chaining, real-time verification).
+5. **3:45 - 5:00**: Adversarial Security Suite & Code Walkthrough (Zero BOLA, DB advisory locking, pytest execution).
+
+---
+
+## 📄 Deliverables Index
+* **Threat Model & Defense:** [`THREATS.md`](THREATS.md)
+* **AI Interaction & Corrections Journal:** [`PROMPTS.md`](PROMPTS.md)
+* **REST API Specification:** [`API.md`](API.md)
+* **System Architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
+* **Compliance Audit Report:** [`SNOVASYS_REQUIREMENTS_COMPLIANCE_REPORT.md`](SNOVASYS_REQUIREMENTS_COMPLIANCE_REPORT.md)
 

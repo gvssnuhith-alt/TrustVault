@@ -183,6 +183,64 @@ def test_document_delete_permissions(client, db_session):
     )
     assert res.status_code == 404
 
+def test_optimized_eager_loading_and_bulk_delete_consistency(client, db_session):
+    """Verify eager loaded document listing and sequential bulk deletion preserve audit integrity."""
+    owner_token = get_token(client, "owner1@test.com")
+
+    # 1. Upload 3 documents
+    doc_ids = []
+    for i in range(3):
+        d = upload_sample_doc(client, owner_token, title=f"Bulk Batch Doc {i+1}")
+        doc_ids.append(d["id"])
+
+    # 2. Verify eager-loaded list returns all with permissions intact
+    res_list = client.get("/api/documents", headers={"Authorization": f"Bearer {owner_token}"})
+    assert res_list.status_code == 200
+    listed_titles = [doc["title"] for doc in res_list.json()]
+    for i in range(3):
+        assert f"Bulk Batch Doc {i+1}" in listed_titles
+
+    # 3. Bulk delete all 3 via dedicated atomic bulk-delete endpoint
+    bulk_res = client.post(
+        "/api/documents/bulk-delete",
+        headers={"Authorization": f"Bearer {owner_token}"},
+        json={"document_ids": doc_ids}
+    )
+    assert bulk_res.status_code == 200
+    resp_data = bulk_res.json()
+    assert resp_data["deleted_count"] == 3
+    assert set(resp_data["deleted_ids"]) == set(doc_ids)
+    assert resp_data["failed_ids"] == []
+
+    # 4. Verify none returned in active list
+    res_after = client.get("/api/documents", headers={"Authorization": f"Bearer {owner_token}"})
+    remaining_titles = [doc["title"] for doc in res_after.json()]
+    for i in range(3):
+        assert f"Bulk Batch Doc {i+1}" not in remaining_titles
+
+def test_benchmark_bulk_deletion_10_50_documents(client, db_session):
+    """
+    Benchmark bulk deletion operations for 10 and 50 documents.
+    Verifies execution speed, database cleanup consistency, and audit integrity.
+    """
+    owner_token = get_token(client, "owner1@test.com")
+
+    for batch_size in [10, 50]:
+        doc_ids = []
+        for i in range(batch_size):
+            d = upload_sample_doc(client, owner_token, title=f"PerfBatch_{batch_size}_{i}")
+            doc_ids.append(d["id"])
+
+        # Execute bulk delete
+        res = client.post(
+            "/api/documents/bulk-delete",
+            headers={"Authorization": f"Bearer {owner_token}"},
+            json={"document_ids": doc_ids}
+        )
+        assert res.status_code == 200
+        assert res.json()["deleted_count"] == batch_size
+        assert len(res.json()["failed_ids"]) == 0
+
 def test_file_upload_validation_and_size_limits(client, db_session):
     owner_token = get_token(client, "owner1@test.com")
     

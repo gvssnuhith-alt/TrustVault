@@ -92,6 +92,15 @@ class ConfirmUploadRequest(BaseModel):
     file_hash_sha256: str
     mime_type: str
 
+class BulkDeleteRequest(BaseModel):
+    document_ids: List[str]
+
+class BulkDeleteResponse(BaseModel):
+    deleted_count: int
+    deleted_ids: List[str]
+    failed_ids: List[str] = []
+    message: str
+
 # Audit schemas
 class AuditLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

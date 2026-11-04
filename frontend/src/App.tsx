@@ -583,9 +583,18 @@ export function App() {
     e.preventDefault();
     if (!editingDoc || isSavingEdit) return;
     setIsSavingEdit(true);
+
+    const prevDoc = editingDoc;
+    const optimisticUpdatedDoc = { ...prevDoc, title: editTitle, category: editCategory, updated_at: new Date().toISOString() };
+
+    // Optimistic UI update: update local list and close dialog immediately
+    setDocs((prev: Document[]) => prev.map((d: Document) => d.id === prevDoc.id ? optimisticUpdatedDoc : d));
+    setEditingDoc(null);
+    setSuccessMsg(`Document '${editTitle}' metadata updated.`);
+
     try {
       const activeToken = token || localStorage.getItem('tv_token');
-      const res = await fetch(`${API_BASE}/documents/${editingDoc.id}`, {
+      const res = await fetch(`${API_BASE}/documents/${prevDoc.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -595,10 +604,11 @@ export function App() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Update failed');
-      setSuccessMsg(`Document '${data.title}' metadata updated.`);
-      setEditingDoc(null);
-      await loadDocuments();
+      // Sync authoritative state silently
+      setDocs((prev: Document[]) => prev.map((d: Document) => d.id === data.id ? data : d));
     } catch (err: any) {
+      // Rollback on failure
+      setDocs((prev: Document[]) => prev.map((d: Document) => d.id === prevDoc.id ? prevDoc : d));
       setErrorMsg(err.message);
     } finally {
       setIsSavingEdit(false);
@@ -609,23 +619,30 @@ export function App() {
   const handleDeleteDocument = async () => {
     if (!deletingDoc || isDeleting) return;
     setIsDeleting(true);
+
+    const targetDoc = deletingDoc;
+    // Optimistic UI update: instantly remove from list and close modal
+    setDocs((prev: Document[]) => prev.filter((d: Document) => d.id !== targetDoc.id));
+    setDeletingDoc(null);
+    setSuccessMsg(`Document '${targetDoc.title}' permanently expunged.`);
+
     try {
       const activeToken = token || localStorage.getItem('tv_token');
-      const res = await fetch(`${API_BASE}/documents/${deletingDoc.id}`, {
+      const res = await fetch(`${API_BASE}/documents/${targetDoc.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${activeToken}` }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Delete failed');
-      setSuccessMsg(`Document '${deletingDoc.title}' permanently expunged.`);
-      setDeletingDoc(null);
-      await loadDocuments();
+
       if (currentUser?.role === 'admin') {
         loadMetrics();
         loadAuditLogs();
         verifyChain();
       }
     } catch (err: any) {
+      // Rollback on failure
+      setDocs((prev: Document[]) => [targetDoc, ...prev]);
       setErrorMsg(err.message);
     } finally {
       setIsDeleting(false);

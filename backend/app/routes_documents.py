@@ -5,7 +5,7 @@ import aiofiles
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request, Query
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_, and_, func
 
 from app.config import settings
@@ -13,7 +13,8 @@ from app.database import get_db
 from app.models import User, UserRole, Document, DocumentPermission, AuditAction
 from app.schemas import (
     DocumentResponse, DocumentUpdateRequest, PermissionGrantRequest, PermissionResponse,
-    UploadIntentRequest, UploadIntentResponse, ConfirmUploadRequest
+    UploadIntentRequest, UploadIntentResponse, ConfirmUploadRequest,
+    BulkDeleteRequest, BulkDeleteResponse
 )
 from app.auth import get_current_user, require_owner_or_admin
 from app.audit import record_audit_event
@@ -365,6 +366,10 @@ def list_documents(
     else:
         query = query.order_by(Document.created_at.desc())
 
+    query = query.options(
+        joinedload(Document.owner),
+        selectinload(Document.permissions).joinedload(DocumentPermission.grantee)
+    )
     docs = query.all()
     return docs
 
@@ -726,3 +731,89 @@ def delete_document(
     )
 
     return {"status": "success", "message": "Document deleted successfully."}
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+def bulk_delete_documents(
+    payload: BulkDeleteRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Optimized bulk deletion endpoint.
+    Performs atomic batch queries, authorization checks, storage cleanup,
+    and records structured audit log events for each deleted document.
+    """
+    if not payload.document_ids:
+        return BulkDeleteResponse(
+            deleted_count=0,
+            deleted_ids=[],
+            failed_ids=[],
+            message="No document IDs provided."
+        )
+
+    # 1. Fetch matching documents in one batch query
+    docs = db.query(Document).filter(
+        Document.id.in_(payload.document_ids),
+        Document.is_deleted == False
+    ).all()
+    doc_map = {doc.id: doc for doc in docs}
+
+    deleted_ids = []
+    failed_ids = []
+    storage_paths_to_delete = []
+
+    ip = request.client.host if request.client else None
+    ua = request.headers.get("user-agent")
+
+    for doc_id in payload.document_ids:
+        doc = doc_map.get(doc_id)
+        if not doc:
+            failed_ids.append(doc_id)
+            continue
+
+        # Strictly check owner or admin
+        if doc.owner_id != current_user.id and current_user.role != UserRole.ADMIN:
+            failed_ids.append(doc_id)
+            record_audit_event(
+                db=db,
+                action=AuditAction.ACCESS_DENIED,
+                user_id=current_user.id,
+                document_id=doc.id,
+                ip_address=ip,
+                user_agent=ua,
+                metadata={"reason": "Non-owner attempted bulk document deletion"}
+            )
+            continue
+
+        # Mark soft deleted
+        doc.is_deleted = True
+        deleted_ids.append(doc.id)
+        storage_paths_to_delete.append(doc.storage_path)
+
+        # Record audit event
+        record_audit_event(
+            db=db,
+            action=AuditAction.DOC_DELETE,
+            user_id=current_user.id,
+            document_id=doc.id,
+            ip_address=ip,
+            user_agent=ua,
+            metadata={"title": doc.title, "filename": doc.original_filename, "bulk": True}
+        )
+
+    db.commit()
+
+    # Clean up storage files
+    for sp in storage_paths_to_delete:
+        try:
+            storage_manager.delete(sp)
+        except Exception:
+            pass
+
+    return BulkDeleteResponse(
+        deleted_count=len(deleted_ids),
+        deleted_ids=deleted_ids,
+        failed_ids=failed_ids,
+        message=f"Successfully deleted {len(deleted_ids)} documents."
+    )
