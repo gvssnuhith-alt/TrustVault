@@ -7,7 +7,7 @@
 An enterprise-grade, zero-trust document security and collaboration platform combining server-enforced RBAC, instant permission revocation, and an append-only SHA-256 chained cryptographic audit ledger.
 
 ## GITHUB REPOSITORY LINK
-https://github.com/gvssnuhith-person/TrustVault
+https://github.com/gvssnuhith-alt/TrustVault
 
 ## LIVE WEBSITE LINK
 https://trust-vault-smoky.vercel.app

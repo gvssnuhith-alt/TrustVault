@@ -2,14 +2,14 @@
 > Secure Document Sharing with Cryptographically Tamper-Evident Audit Trail  
 > **Engineered for Snovasys Fresher Hiring Challenge 2026 (RISE)**
 
-[![Security: Zero-Trust](https://img.shields.io/badge/Security-Zero--Trust-emerald)](https://github.com/gvssnuhith-person/TrustVault)
-[![Audit: SHA256 Chained](https://img.shields.io/badge/Audit-SHA256%20Chained-purple)](https://github.com/gvssnuhith-person/TrustVault)
-[![Tests: 100% Adversarial Pass](https://img.shields.io/badge/Tests-100%25%20Adversarial%20Pass-blue)](https://github.com/gvssnuhith-person/TrustVault)
+[![Security: Zero-Trust](https://img.shields.io/badge/Security-Zero--Trust-emerald)](https://github.com/gvssnuhith-alt/TrustVault)
+[![Audit: SHA256 Chained](https://img.shields.io/badge/Audit-SHA256%20Chained-purple)](https://github.com/gvssnuhith-alt/TrustVault)
+[![Tests: 100% Adversarial Pass](https://img.shields.io/badge/Tests-100%25%20Adversarial%20Pass-blue)](https://github.com/gvssnuhith-alt/TrustVault)
 
 ---
 
 ## 🌐 Live Deployments & Repository
-* **GitHub Repository (Private until Nov 7, 2026 6:00 PM IST):** [https://github.com/gvssnuhith-person/TrustVault](https://github.com/gvssnuhith-person/TrustVault)
+* **GitHub Repository:** [https://github.com/gvssnuhith-alt/TrustVault](https://github.com/gvssnuhith-alt/TrustVault)
 * **Production Live Application (Vercel):** [https://trust-vault-smoky.vercel.app](https://trust-vault-smoky.vercel.app)
 * **Production API Health Endpoint:** [https://trust-vault-smoky.vercel.app/healthz](https://trust-vault-smoky.vercel.app/healthz)
 * **Production Database Readiness:** [https://trust-vault-smoky.vercel.app/api/readyz](https://trust-vault-smoky.vercel.app/api/readyz)
@@ -84,7 +84,7 @@ python -m pytest tests/ -v
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/gvssnuhith-person/TrustVault.git
+git clone https://github.com/gvssnuhith-alt/TrustVault.git
 cd TrustVault
 ```
 
