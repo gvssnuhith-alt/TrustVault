@@ -2,11 +2,11 @@
   "functional": {
     "healthz_endpoint": {
       "status": "PASS",
-      "evidence": "HTTP 200, latency 7287.7ms"
+      "evidence": "HTTP 200, latency 6922.8ms"
     },
     "readyz_db_connected": {
       "status": "PASS",
-      "evidence": "HTTP 200, latency 1283.9ms"
+      "evidence": "HTTP 200, latency 1278.5ms"
     },
     "user_registration_roles": {
       "status": "PASS",
@@ -18,7 +18,7 @@
     },
     "auth_me_resolution": {
       "status": "PASS",
-      "evidence": "Resolved viewer ID: 0fd50ec3-17b6-4949-87cd-741db9c3b3b3"
+      "evidence": "Resolved viewer ID: 93a923b1-3563-4f9f-a120-970be5ee1c0e"
     },
     "jwt_logout_and_revocation": {
       "status": "PASS",
@@ -34,7 +34,7 @@
     },
     "confirm_upload_doc_created": {
       "status": "PASS",
-      "evidence": "Doc ID f0991f91-2c1d-4c8d-92ab-cff9d3b493ac created"
+      "evidence": "Doc ID 5d987ca7-04ba-484e-a7ee-9d95b4b22e68 created"
     },
     "document_search_and_filter": {
       "status": "PASS",
@@ -46,7 +46,7 @@
     },
     "permission_grant": {
       "status": "PASS",
-      "evidence": "Granted read permission to vie_cb85f4"
+      "evidence": "Granted read permission to vie_530202"
     },
     "shared_viewer_access": {
       "status": "PASS",
@@ -74,7 +74,7 @@
     },
     "admin_metrics_endpoint": {
       "status": "PASS",
-      "evidence": "Docs: 101, Logs: None"
+      "evidence": "Docs: 1, Logs: None"
     }
   },
   "security": {
@@ -146,7 +146,7 @@
   "audit_crypto": {
     "production_chain_continuity": {
       "status": "PASS",
-      "evidence": "602 blocks mathematically verified"
+      "evidence": "820 blocks mathematically verified"
     },
     "isolated_tamper_detection_logic": {
       "status": "PASS",
@@ -156,15 +156,15 @@
   "performance": {
     "latency_edge_health": {
       "status": "PASS",
-      "evidence": "Avg 610.4ms, Range [507.1ms - 713.6ms]"
+      "evidence": "Avg 365.7ms, Range [334.8ms - 409.8ms]"
     },
     "latency_db_readiness": {
       "status": "PASS",
-      "evidence": "Avg 1063.5ms, Range [954.7ms - 1131.9ms]"
+      "evidence": "Avg 934.1ms, Range [921.9ms - 952.9ms]"
     },
     "latency_api_docs": {
       "status": "PASS",
-      "evidence": "Avg 320.1ms, Range [300.0ms - 386.2ms]"
+      "evidence": "Avg 137.4ms, Range [126.3ms - 148.5ms]"
     }
   },
   "frontend_secrets": {
