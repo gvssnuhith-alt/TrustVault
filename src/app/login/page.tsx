@@ -122,6 +122,27 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {/* Preset Test Credentials Card */}
+        <div className="mt-8 p-4 rounded-xl border border-white/10 bg-zinc-950 text-left font-mono text-[11px]">
+          <p className="text-zinc-400 font-semibold mb-2 uppercase text-[10px] tracking-wider text-[#C8A45D]">
+            Official Evaluation Credentials (RISE)
+          </p>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center py-1 border-b border-white/5">
+              <span className="text-[#C8A45D]">Admin</span>
+              <span className="text-zinc-300">admin@trustvault.io / AdminSecurePass2026!</span>
+            </div>
+            <div className="flex justify-between items-center py-1 border-b border-white/5">
+              <span className="text-[#B8E6C5]">Owner</span>
+              <span className="text-zinc-300">owner@trustvault.io / OwnerSecurePass2026!</span>
+            </div>
+            <div className="flex justify-between items-center py-1">
+              <span className="text-zinc-400">Viewer</span>
+              <span className="text-zinc-300">viewer@trustvault.io / ViewerSecurePass2026!</span>
+            </div>
+          </div>
+        </div>
+
         {/* Footer info */}
         <div className="mt-8 pt-6 border-t border-white/5 text-center">
           <p className="text-xs text-zinc-500">
