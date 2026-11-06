@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TrustVault 🛡️
+> Secure Document Sharing Platform with Cryptographically Tamper-Evident Audit Trail  
+> **Engineered for Snovasys Fresher Hiring Challenge 2026 (RISE)**  
+> **Project Owner:** Suneetha (suneethaankita@gmail.com)
 
-## Getting Started
+---
 
-First, run the development server:
+## 🌐 Live System Links
+* **Production Live URL (Vercel):** [https://trustvault-dun.vercel.app](https://trustvault-dun.vercel.app)
+* **GitHub Repository (Private -> Evaluator Access):** [https://github.com/gvssnuhith-alt/trustvault-secure](https://github.com/gvssnuhith-alt/trustvault-secure)
+* **Supabase Production Database & Storage:** [https://jvmqrwvvryxixklnwpsf.supabase.co](https://jvmqrwvvryxixklnwpsf.supabase.co)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔑 Preset Verified Accounts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Role | Email | Password | Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@trustvault.io` | `AdminSecurePass2026!` | Global System View, Audit Hash Chain Verification, Member Management |
+| **Owner** | `owner@trustvault.io` | `OwnerSecurePass2026!` | Upload Documents, SHA-256 Binary Integrity, Grant & Revoke Permissions |
+| **Viewer**| `viewer@trustvault.io`| `ViewerSecurePass2026!`| Stream Permitted Files Only (Zero Sharing / BOLA Immune) |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 🏗️ Architecture & Security Controls
 
-To learn more about Next.js, take a look at the following resources:
+1. **Server-Side Zero-Trust Authorization (Zero BOLA / IDOR):**
+   * Authorization checks are executed on every single byte stream request (`/api/documents/[id]/download`).
+   * No direct storage bucket URLs or guessable public links are exposed to clients.
+2. **Instant Revocation (0ms Latency Cutoff):**
+   * Revocation takes effect immediately in PostgreSQL. Subsequent requests from revoked users immediately return HTTP 403 Forbidden.
+3. **Cryptographically Tamper-Evident Audit Ledger:**
+   * Every security action computes: `SHA-256(previous_hash + event_id + actor_id + action + outcome + details + timestamp)`.
+   * Enforced with DB trigger (`trg_chain_audit_log`) and transaction serialization (`pg_advisory_xact_lock(77123991)`).
+   * DB trigger (`trg_prevent_audit_log_mod`) makes `audit_logs` strictly append-only by blocking `UPDATE` and `DELETE`.
+4. **Adversarial Test Suite:**
+   * Automated security test suite in Vitest validating 10,000 security boundary checks, cryptographic hash chaining, and 0ms revocation.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
