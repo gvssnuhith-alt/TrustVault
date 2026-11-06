@@ -1,5 +1,5 @@
 import React from "react";
-import { Shield, Lock, FileCheck, Eye, Terminal, ArrowRight, Activity, Users, Database } from "lucide-react";
+import { Shield, Lock, FileCheck, Terminal, ArrowRight, Activity, Users } from "lucide-react";
 
 export default function Home() {
   return (
