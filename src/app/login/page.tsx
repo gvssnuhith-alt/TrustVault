@@ -143,15 +143,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Footer info */}
-        <div className="mt-8 pt-6 border-t border-white/5 text-center">
-          <p className="text-xs text-zinc-500">
-            Need an account?{" "}
-            <a href="/register" className="text-[#C8A45D] hover:underline font-medium">
-              Create an account
-            </a>
-          </p>
-        </div>
       </div>
     </div>
   );
