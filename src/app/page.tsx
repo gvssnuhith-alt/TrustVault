@@ -21,15 +21,9 @@ export default function Home() {
         <nav className="flex items-center gap-4">
           <a
             href="/login"
-            className="text-xs uppercase tracking-wider text-zinc-400 hover:text-white transition-colors"
-          >
-            Sign In
-          </a>
-          <a
-            href="/register"
             className="text-xs uppercase tracking-wider font-semibold px-4 py-2 rounded-md bg-[#B8E6C5] text-black hover:bg-[#a0dcb0] transition-colors"
           >
-            Open Vault
+            Sign In
           </a>
         </nav>
       </header>

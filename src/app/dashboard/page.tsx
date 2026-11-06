@@ -351,7 +351,7 @@ export default function DashboardPage() {
               }`}
             >
               <Upload className="w-4 h-4" />
-              <span>Upload Vault</span>
+              <span>Upload Document</span>
             </button>
           )}
 
@@ -493,7 +493,7 @@ export default function DashboardPage() {
           {/* TAB: UPLOAD */}
           {activeTab === "upload" && (
             <div className="max-w-xl mx-auto p-8 rounded-2xl border border-white/10 bg-zinc-950/80">
-              <h2 className="text-xl font-bold mb-2">Upload to Vault</h2>
+              <h2 className="text-xl font-bold mb-2">Upload Document</h2>
               <p className="text-xs text-zinc-400 mb-6 font-mono">
                 Files are cryptographically hashed (SHA-256) and saved to a private storage bucket.
               </p>
@@ -542,7 +542,7 @@ export default function DashboardPage() {
                       <span>Hashing & Encrypting...</span>
                     </>
                   ) : (
-                    <span>Submit to Secure Vault</span>
+                    <span>Submit Document</span>
                   )}
                 </button>
               </form>

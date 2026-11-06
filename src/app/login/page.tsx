@@ -115,7 +115,7 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <span>Enter Vault</span>
+                <span>Sign In</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

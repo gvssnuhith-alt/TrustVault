@@ -51,7 +51,7 @@ export default function RegisterPage() {
             CREATE <span className="text-[#C8A45D]">ACCOUNT</span>
           </h1>
           <p className="text-xs text-zinc-400 mt-1 font-mono uppercase tracking-widest">
-            TrustVault Identity Provisioning
+            Identity Provisioning
           </p>
         </div>
 
