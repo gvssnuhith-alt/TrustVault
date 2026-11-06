@@ -26,17 +26,19 @@ export async function verifyServerAuth(req: NextRequest): Promise<AuthContext | 
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (!profile || profile.is_suspended) {
+    const role = (profile?.role || user.user_metadata?.role || 'viewer') as 'admin' | 'owner' | 'viewer';
+
+    if (profile?.is_suspended) {
       return null;
     }
 
     return {
       userId: user.id,
-      email: user.email || profile.email,
-      role: profile.role,
-      isSuspended: profile.is_suspended,
+      email: user.email || profile?.email || '',
+      role,
+      isSuspended: profile?.is_suspended || false,
     };
   } catch {
     return null;

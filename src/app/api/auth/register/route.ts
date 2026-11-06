@@ -30,12 +30,13 @@ export async function POST(req: NextRequest) {
 
     const userId = authData.user.id;
 
-    // 2. Insert into profiles table
-    const { error: profileError } = await supabaseAdmin.from('profiles').insert({
+    // 2. Insert into profiles table with specified role
+    const allowedRole = ['admin', 'owner', 'viewer'].includes(role) ? role : 'viewer';
+    const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: userId,
       email,
       full_name: full_name || email.split('@')[0],
-      role: ['admin', 'owner', 'viewer'].includes(role) ? role : 'viewer',
+      role: allowedRole,
     });
 
     if (profileError) {

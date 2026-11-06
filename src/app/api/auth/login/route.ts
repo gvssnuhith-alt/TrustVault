@@ -30,7 +30,9 @@ export async function POST(req: NextRequest) {
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
-      .single();
+      .maybeSingle();
+
+    const userRole = profile?.role || (data.user.user_metadata?.role as 'admin' | 'owner' | 'viewer') || 'viewer';
 
     if (profile?.is_suspended) {
       await logSecurityEvent({
@@ -47,10 +49,10 @@ export async function POST(req: NextRequest) {
     await logSecurityEvent({
       actorId: data.user.id,
       actorEmail: email,
-      actorRole: profile?.role || 'viewer',
+      actorRole: userRole,
       action: 'LOGIN_SUCCESS',
       outcome: 'success',
-      details: { role: profile?.role },
+      details: { role: userRole },
     });
 
     return NextResponse.json({
@@ -59,8 +61,8 @@ export async function POST(req: NextRequest) {
       user: {
         id: data.user.id,
         email: data.user.email,
-        role: profile?.role || 'viewer',
-        full_name: profile?.full_name,
+        role: userRole,
+        full_name: profile?.full_name || data.user.user_metadata?.full_name,
       },
     });
   } catch (err: unknown) {
