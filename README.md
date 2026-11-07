@@ -7,7 +7,7 @@
 
 ## 🌐 Live System Links
 * **Production Live URL (Vercel):** [https://trustvault-dun.vercel.app](https://trustvault-dun.vercel.app)
-* **GitHub Repository (Private -> Evaluator Access):** [https://github.com/gvssnuhith-alt/trustvault-secure](https://github.com/gvssnuhith-alt/trustvault-secure)
+* **GitHub Repository (Private -> Evaluator Access):** [https://github.com/gvssnuhith-alt/TrustVault](https://github.com/gvssnuhith-alt/TrustVault)
 * **Supabase Production Database & Storage:** [https://jvmqrwvvryxixklnwpsf.supabase.co](https://jvmqrwvvryxixklnwpsf.supabase.co)
 
 ---
