@@ -133,7 +133,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-6 px-6 text-center text-xs text-zinc-500 font-mono">
-        <p>TrustVault • Snovasys Hiring Challenge 2026 (RISE) • Engineered for Suneetha (suneethaankita@gmail.com)</p>
+        <p>TrustVault • Snovasys Hiring Challenge 2026 (RISE) • Zero-Trust Document Security Suite</p>
       </footer>
     </div>
   );

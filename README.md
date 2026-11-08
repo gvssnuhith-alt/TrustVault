@@ -1,7 +1,6 @@
 # TrustVault 🛡️
 > Secure Document Sharing Platform with Cryptographically Tamper-Evident Audit Trail  
-> **Engineered for Snovasys Fresher Hiring Challenge 2026 (RISE)**  
-> **Project Owner:** Suneetha (suneethaankita@gmail.com)
+> **Engineered for Snovasys Fresher Hiring Challenge 2026 (RISE)**
 
 ---
 

@@ -72,7 +72,7 @@ export default function RegisterPage() {
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                placeholder="Suneetha Ankitha"
+                placeholder="Jane Doe"
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-black/60 border border-white/10 text-sm text-white focus:outline-none focus:border-[#B8E6C5] transition-colors"
               />
             </div>
@@ -87,7 +87,7 @@ export default function RegisterPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="suneetha@example.com"
+                placeholder="user@example.com"
                 className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-black/60 border border-white/10 text-sm text-white focus:outline-none focus:border-[#B8E6C5] transition-colors"
               />
             </div>
